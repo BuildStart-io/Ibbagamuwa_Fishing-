@@ -1,8 +1,8 @@
 project_id = "buildstart-selfhosted"
 
-[functions.webhook-wsender]
+[functions.webhook-wsender_fishing_V2]
 verify_jwt = false
-[functions.process-message]
+[functions.process-message_fishing_V2]
 verify_jwt = false
-[functions.assetlinks]
+[functions.assetlinks_fishing_V2]
 verify_jwt = false

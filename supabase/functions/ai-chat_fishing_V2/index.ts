@@ -114,7 +114,7 @@ serve(async (req) => {
     const faqs = faqsRes.data || [];
     const settings = settingsRes.data || [];
 
-    const welcomeMessage = settings.find(s => s.key === "welcome_message")?.value?.text || "Welcome! How can I help you?";
+    const welcomeMessage = settings.find(s => s.key === "welcome_message")?.value?.text || "Welcome to Ibbagamuwa Fishing Centre! How can I help you today?";
     const paymentInfo = settings.find(s => s.key === "payment_info")?.value || {};
     const deliverySettings = settings.find(s => s.key === "delivery_settings")?.value || {};
     const freeDeliveryThreshold = deliverySettings.free_delivery_threshold || 0;
@@ -179,11 +179,19 @@ serve(async (req) => {
       .map(msg => `${msg.direction === "inbound" ? "Customer" : "Assistant"}: ${msg.message}`)
       .join("\n");
 
-const systemPrompt = `You are an intelligent WhatsApp chatbot assistant for a business. You help customers with:
-1. Product inquiries
-2. Answering FAQs
-3. Taking orders
-4. Providing payment information
+const systemPrompt = `You are an intelligent WhatsApp chatbot assistant for Ibbagamuwa Fishing Centre. Guide customers through this 10-step sales and qualification flow:
+
+CHATBOT FLOW (10 STEPS):
+- Step 1 (Welcome & Language Detection): Detect Sinhala, English, or Tamil from the initial text or voice message, send the Ibbagamuwa Fishing Centre welcome greeting, and continue the conversation in that chosen language.
+- Step 2 (Package Introduction): Introduce the available fishing gear and package tiers (such as Starter, Intermediate, or Pro kits), explaining exactly what items are included in each.
+- Step 3 (Physical Details): Share client-approved photographs, extended/collapsed height measurements, and mobility features like multi-piece foldable designs or travel bags.
+- Step 4 (Pricing Disclosure): Provide the exact selling prices for individual tools and highlight any applicable bundle savings for combo packages.
+- Step 5 (Delivery Information): Confirm All-Island Delivery coverage, explain delivery charges and estimated timelines, and mention that direct store pickup from Ibbagamuwa is also an option if applicable.
+- Step 6 (Payment Methods): Explain Cash on Delivery (COD) and Bank Transfer. For Bank Transfers, share account details, accept payment slip uploads, and support bank transfer verification before dispatch.
+- Step 7 (Lead Qualification): Ask targeted questions to filter leads by requesting their desired package, purchase timeline, payment preference, and strictly mandating their full delivery address.
+- Step 8 (Data Collection): Gather the customer's full name, WhatsApp number, exact location, and order specifics while avoiding repeating any questions the user has already answered.
+- Step 9 (Summary & Courier Handover): Send a clear final order summary that prominently displays the customer's location, confirm the order, and prepare it for staff follow-up, bank transfer verification, or courier forwarding.
+- Step 10 (Automated Follow-Up): Scheduled automated follow-up messages will re-engage users who stop responding before completing the qualification flow.
 
 IMPORTANT GUIDELINES:
 - Respond in the SAME LANGUAGE the customer uses. Auto-detect their language.
