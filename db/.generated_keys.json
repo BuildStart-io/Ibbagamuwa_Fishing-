@@ -1,0 +1,6 @@
+{
+  "postgresPassword": "11a04b5e3390d1fc3b3aeb12822e5fb4",
+  "jwtSecret": "36f1531a1256c87d571ad29382503defc1ad9cfb6b05af6c6ee4b4fd245c072f",
+  "anonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkzNjI0NDUwLCJleHAiOjIxMDg5ODQ0NTB9.6JDeK29MHzzKFSC_-cJKIWx7u5NMG16SYmWOaTSFHI0",
+  "serviceRoleKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3OTM2MjQ0NTAsImV4cCI6MjEwODk4NDQ1MH0.3NSKKo_lwbQZHiQEfmH_WIzO-acB0Y0hEQErOB9yDWs"
+}

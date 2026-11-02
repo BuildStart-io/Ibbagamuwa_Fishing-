@@ -14,8 +14,26 @@ serve(async (req: Request) => {
   }
 
   try {
+    let servicePath = `/home/deno/functions/${functionName}`;
+    try {
+      await Deno.stat(servicePath);
+    } catch {
+      if (functionName.endsWith('_fishing')) {
+        const base = functionName.replace(/_fishing$/, '');
+        try {
+          await Deno.stat(`/home/deno/functions/${base}`);
+          servicePath = `/home/deno/functions/${base}`;
+        } catch {}
+      } else {
+        try {
+          await Deno.stat(`/home/deno/functions/${functionName}_fishing`);
+          servicePath = `/home/deno/functions/${functionName}_fishing`;
+        } catch {}
+      }
+    }
+
     const worker = await EdgeRuntime.userWorkers.create({
-      servicePath: `/home/deno/functions/${functionName}`,
+      servicePath,
       memoryLimitMb: 256,
       workerTimeoutMs: 5 * 60 * 1000,
       cpuTimeSoftLimitMs: 5 * 60 * 1000,
