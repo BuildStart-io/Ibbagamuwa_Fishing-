@@ -11,11 +11,11 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   );
 }
 
-const DB_SCHEMA = (import.meta.env.VITE_DB_SCHEMA as string) || "fishing";
+const DB_SCHEMA = ((import.meta.env.VITE_DB_SCHEMA as string) || "fishing_V2").toLowerCase();
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   db: {
-    schema: DB_SCHEMA as "fishing",
+    schema: DB_SCHEMA as any,
   },
   auth: {
     storage: localStorage,

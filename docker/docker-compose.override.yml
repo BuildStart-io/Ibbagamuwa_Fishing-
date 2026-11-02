@@ -19,8 +19,8 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_REGION: ${MINIO_REGION}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
-      WEBHOOK_URL_OVERRIDE: "https://responses-contribute-knows-ipod.trycloudflare.com/functions/v1/webhook-wsender_fishing"
-      DB_SCHEMA: "fishing"
+      WEBHOOK_URL_OVERRIDE: "https://responses-contribute-knows-ipod.trycloudflare.com/functions/v1/webhook-wsender_fishing_V2"
+      DB_SCHEMA: "fishing_v2"
 
   minio:
     container_name: supabase-minio

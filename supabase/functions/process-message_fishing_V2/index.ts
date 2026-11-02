@@ -293,7 +293,7 @@ async function processMessage(
 
   let aiResponse: Response;
   try {
-    aiResponse = await fetch(`${supabaseUrl}/functions/v1/ai-chat_fishing`, {
+    aiResponse = await fetch(`${supabaseUrl}/functions/v1/ai-chat_fishing_V2`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${supabaseServiceKey}`,
@@ -496,7 +496,7 @@ async function sendWhatsApp(
   const body: any = { to, message, sessionApiKey };
   if (imageUrl) body.imageUrl = imageUrl;
 
-  const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp_fishing`, {
+  const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp_fishing_V2`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${supabaseServiceKey}`,
@@ -521,7 +521,7 @@ async function sendWhatsAppMedia(
   mediaUrl: string,
   sessionApiKey: string
 ) {
-  const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp_fishing`, {
+  const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp_fishing_V2`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${supabaseServiceKey}`,
@@ -700,7 +700,7 @@ async function maybeNotifyQualifiedLead(
       sendApiKey = sessionData?.session_api_key || null;
     }
 
-    const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp_fishing`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp_fishing_V2`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${supabaseServiceKey}`,

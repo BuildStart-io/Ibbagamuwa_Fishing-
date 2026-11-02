@@ -172,7 +172,7 @@ serve(async (req) => {
     }
 
     // Fire-and-forget trigger process-message (cron is the safety net)
-    fetch(`${supabaseUrl}/functions/v1/process-message_fishing`, {
+    fetch(`${supabaseUrl}/functions/v1/process-message_fishing_V2`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

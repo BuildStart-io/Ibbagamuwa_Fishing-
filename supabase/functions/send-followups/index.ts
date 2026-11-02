@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
         }
 
         try {
-          const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp_fishing`, {
+          const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp_fishing_V2`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${serviceKey}`,

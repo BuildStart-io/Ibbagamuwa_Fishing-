@@ -23,21 +23,21 @@ SET row_security = off;
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
 --
 
-CREATE SCHEMA IF NOT EXISTS fishing;
+CREATE SCHEMA IF NOT EXISTS fishing_V2;
 
 
 --
 -- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
 --
 
-COMMENT ON SCHEMA fishing IS 'fishing tenant schema';
+COMMENT ON SCHEMA fishing_V2 IS 'fishing_V2 tenant schema';
 
 
 --
 -- Name: app_role; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE fishing.app_role AS ENUM (
+CREATE TYPE fishing_V2.app_role AS ENUM (
     'super_admin',
     'business_user'
 );
@@ -47,7 +47,7 @@ CREATE TYPE fishing.app_role AS ENUM (
 -- Name: plan_tier; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE fishing.plan_tier AS ENUM (
+CREATE TYPE fishing_V2.plan_tier AS ENUM (
     'free',
     'pro',
     'enterprise'
@@ -58,14 +58,14 @@ CREATE TYPE fishing.plan_tier AS ENUM (
 -- Name: can_read_usage(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.can_read_usage(_user_id uuid) RETURNS boolean
+CREATE FUNCTION fishing_V2.can_read_usage(_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
   SELECT auth.uid() IS NULL
       OR auth.uid() = _user_id
-      OR fishing.has_role(auth.uid(), 'super_admin'::app_role)
-      OR fishing.is_staff_of(auth.uid(), _user_id)
+      OR fishing_V2.has_role(auth.uid(), 'super_admin'::app_role)
+      OR fishing_V2.is_staff_of(auth.uid(), _user_id)
 $$;
 
 
@@ -73,9 +73,9 @@ $$;
 -- Name: enforce_order_limit(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.enforce_order_limit() RETURNS trigger
+CREATE FUNCTION fishing_V2.enforce_order_limit() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
 DECLARE
   current_count INT;
@@ -141,17 +141,17 @@ $$;
 -- Name: get_ai_message_usage(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.get_ai_message_usage(_user_id uuid, _since timestamp with time zone) RETURNS integer
+CREATE FUNCTION fishing_V2.get_ai_message_usage(_user_id uuid, _since timestamp with time zone) RETURNS integer
     LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
 DECLARE c integer;
 BEGIN
-  IF NOT fishing.can_read_usage(_user_id) THEN
+  IF NOT fishing_V2.can_read_usage(_user_id) THEN
     RAISE EXCEPTION 'Not authorized';
   END IF;
   SELECT COUNT(*) INTO c
-  FROM fishing.ai_usage_logs
+  FROM fishing_V2.ai_usage_logs
   WHERE user_id = _user_id AND created_at >= _since;
   RETURN COALESCE(c, 0);
 END;
@@ -162,17 +162,17 @@ $$;
 -- Name: get_contact_usage(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.get_contact_usage(_user_id uuid, _since timestamp with time zone) RETURNS integer
+CREATE FUNCTION fishing_V2.get_contact_usage(_user_id uuid, _since timestamp with time zone) RETURNS integer
     LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
 DECLARE c integer;
 BEGIN
-  IF NOT fishing.can_read_usage(_user_id) THEN
+  IF NOT fishing_V2.can_read_usage(_user_id) THEN
     RAISE EXCEPTION 'Not authorized';
   END IF;
   SELECT COUNT(DISTINCT phone_number) INTO c
-  FROM fishing.contact_usage
+  FROM fishing_V2.contact_usage
   WHERE user_id = _user_id AND created_at >= _since;
   RETURN COALESCE(c, 0);
 END;
@@ -183,11 +183,11 @@ $$;
 -- Name: get_staff_owner_id(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.get_staff_owner_id(_user_id uuid) RETURNS uuid
+CREATE FUNCTION fishing_V2.get_staff_owner_id(_user_id uuid) RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
-  SELECT owner_id FROM fishing.staff_accounts
+  SELECT owner_id FROM fishing_V2.staff_accounts
   WHERE staff_user_id = _user_id AND is_active = true
   LIMIT 1
 $$;
@@ -197,12 +197,12 @@ $$;
 -- Name: handle_new_user(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.handle_new_user() RETURNS trigger
+CREATE FUNCTION fishing_V2.handle_new_user() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
 BEGIN
-  INSERT INTO fishing.profiles (user_id, email, full_name)
+  INSERT INTO fishing_V2.profiles (user_id, email, full_name)
   VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email));
   RETURN NEW;
 END;
@@ -213,12 +213,12 @@ $$;
 -- Name: handle_new_user_role(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.handle_new_user_role() RETURNS trigger
+CREATE FUNCTION fishing_V2.handle_new_user_role() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
 BEGIN
-  INSERT INTO fishing.user_roles (user_id, role)
+  INSERT INTO fishing_V2.user_roles (user_id, role)
   VALUES (NEW.id, 'business_user');
   RETURN NEW;
 END;
@@ -229,12 +229,12 @@ $$;
 -- Name: handle_new_user_settings(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.handle_new_user_settings() RETURNS trigger
+CREATE FUNCTION fishing_V2.handle_new_user_settings() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
 BEGIN
-  INSERT INTO fishing.settings (user_id, key, value) VALUES
+  INSERT INTO fishing_V2.settings (user_id, key, value) VALUES
     (NEW.id, 'welcome_message', '{"text": "Welcome! How can I help you today?"}'::jsonb),
     (NEW.id, 'payment_info', '{"bank_name": "", "account_number": "", "account_name": ""}'::jsonb),
     (NEW.id, 'auto_responses', '{"enabled": true}'::jsonb);
@@ -244,15 +244,15 @@ $$;
 
 
 --
--- Name: has_role(uuid, fishing.app_role); Type: FUNCTION; Schema: public; Owner: -
+-- Name: has_role(uuid, fishing_V2.app_role); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.has_role(_user_id uuid, _role fishing.app_role) RETURNS boolean
+CREATE FUNCTION fishing_V2.has_role(_user_id uuid, _role fishing_V2.app_role) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
   SELECT EXISTS (
-    SELECT 1 FROM fishing.user_roles
+    SELECT 1 FROM fishing_V2.user_roles
     WHERE user_id = _user_id AND role = _role
   )
 $$;
@@ -262,13 +262,13 @@ $$;
 -- Name: is_admin(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.is_admin() RETURNS boolean
+CREATE FUNCTION fishing_V2.is_admin() RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
 BEGIN
   RETURN EXISTS (
-    SELECT 1 FROM fishing.profiles
+    SELECT 1 FROM fishing_V2.profiles
     WHERE user_id = auth.uid()
   );
 END;
@@ -279,12 +279,12 @@ $$;
 -- Name: is_staff_of(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.is_staff_of(_staff_user_id uuid, _owner_id uuid) RETURNS boolean
+CREATE FUNCTION fishing_V2.is_staff_of(_staff_user_id uuid, _owner_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
   SELECT EXISTS (
-    SELECT 1 FROM fishing.staff_accounts
+    SELECT 1 FROM fishing_V2.staff_accounts
     WHERE staff_user_id = _staff_user_id
       AND owner_id = _owner_id
       AND is_active = true
@@ -296,9 +296,9 @@ $$;
 -- Name: update_updated_at_column(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION fishing.update_updated_at_column() RETURNS trigger
+CREATE FUNCTION fishing_V2.update_updated_at_column() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'fishing', 'public'
+    SET search_path TO 'fishing_V2', 'public'
     AS $$
 BEGIN
   NEW.updated_at = now();
@@ -315,7 +315,7 @@ SET default_table_access_method = heap;
 -- Name: ai_usage_logs; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.ai_usage_logs (
+CREATE TABLE fishing_V2.ai_usage_logs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     phone_number text,
@@ -327,7 +327,7 @@ CREATE TABLE fishing.ai_usage_logs (
 -- Name: chat_takeovers; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.chat_takeovers (
+CREATE TABLE fishing_V2.chat_takeovers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     phone_number text NOT NULL,
@@ -341,7 +341,7 @@ CREATE TABLE fishing.chat_takeovers (
 -- Name: contact_usage; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.contact_usage (
+CREATE TABLE fishing_V2.contact_usage (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     phone_number text NOT NULL,
@@ -354,7 +354,7 @@ CREATE TABLE fishing.contact_usage (
 -- Name: conversations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.conversations (
+CREATE TABLE fishing_V2.conversations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     phone_number text NOT NULL,
     message text NOT NULL,
@@ -371,7 +371,7 @@ CREATE TABLE fishing.conversations (
 -- Name: faq_usage_logs; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.faq_usage_logs (
+CREATE TABLE fishing_V2.faq_usage_logs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     faq_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -385,7 +385,7 @@ CREATE TABLE fishing.faq_usage_logs (
 -- Name: faqs; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.faqs (
+CREATE TABLE fishing_V2.faqs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     question text NOT NULL,
     answer text NOT NULL,
@@ -403,7 +403,7 @@ CREATE TABLE fishing.faqs (
 -- Name: fcm_tokens; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.fcm_tokens (
+CREATE TABLE fishing_V2.fcm_tokens (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     device_token text NOT NULL,
@@ -417,7 +417,7 @@ CREATE TABLE fishing.fcm_tokens (
 -- Name: leads; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.leads (
+CREATE TABLE fishing_V2.leads (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     phone_number text NOT NULL,
@@ -433,7 +433,7 @@ CREATE TABLE fishing.leads (
 -- Name: message_queue; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.message_queue (
+CREATE TABLE fishing_V2.message_queue (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     wsender_message_id text NOT NULL,
     user_id uuid NOT NULL,
@@ -458,7 +458,7 @@ CREATE TABLE fishing.message_queue (
 -- Name: orders; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.orders (
+CREATE TABLE fishing_V2.orders (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     customer_name text NOT NULL,
     customer_phone text NOT NULL,
@@ -482,7 +482,7 @@ CREATE TABLE fishing.orders (
 -- Name: platform_settings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.platform_settings (
+CREATE TABLE fishing_V2.platform_settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     key text NOT NULL,
     value jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -495,7 +495,7 @@ CREATE TABLE fishing.platform_settings (
 -- Name: products; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.products (
+CREATE TABLE fishing_V2.products (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,
     description text,
@@ -517,14 +517,14 @@ CREATE TABLE fishing.products (
 -- Name: profiles; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.profiles (
+CREATE TABLE fishing_V2.profiles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     full_name text,
     email text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    plan_tier fishing.plan_tier DEFAULT 'free'::fishing.plan_tier NOT NULL,
+    plan_tier fishing_V2.plan_tier DEFAULT 'free'::fishing_V2.plan_tier NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     business_name text,
     max_products integer DEFAULT 5,
@@ -545,7 +545,7 @@ CREATE TABLE fishing.profiles (
 -- Name: settings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.settings (
+CREATE TABLE fishing_V2.settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     key text NOT NULL,
     value jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -559,7 +559,7 @@ CREATE TABLE fishing.settings (
 -- Name: staff_accounts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.staff_accounts (
+CREATE TABLE fishing_V2.staff_accounts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
     staff_user_id uuid NOT NULL,
@@ -577,10 +577,10 @@ CREATE TABLE fishing.staff_accounts (
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.user_roles (
+CREATE TABLE fishing_V2.user_roles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
-    role fishing.app_role DEFAULT 'business_user'::fishing.app_role NOT NULL,
+    role fishing_V2.app_role DEFAULT 'business_user'::fishing_V2.app_role NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -589,7 +589,7 @@ CREATE TABLE fishing.user_roles (
 -- Name: user_wsender_sessions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE fishing.user_wsender_sessions (
+CREATE TABLE fishing_V2.user_wsender_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     session_id text NOT NULL,
@@ -603,7 +603,7 @@ CREATE TABLE fishing.user_wsender_sessions (
 -- Name: ai_usage_logs ai_usage_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.ai_usage_logs
+ALTER TABLE ONLY fishing_V2.ai_usage_logs
     ADD CONSTRAINT ai_usage_logs_pkey PRIMARY KEY (id);
 
 
@@ -611,7 +611,7 @@ ALTER TABLE ONLY fishing.ai_usage_logs
 -- Name: chat_takeovers chat_takeovers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.chat_takeovers
+ALTER TABLE ONLY fishing_V2.chat_takeovers
     ADD CONSTRAINT chat_takeovers_pkey PRIMARY KEY (id);
 
 
@@ -619,7 +619,7 @@ ALTER TABLE ONLY fishing.chat_takeovers
 -- Name: chat_takeovers chat_takeovers_user_id_phone_number_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.chat_takeovers
+ALTER TABLE ONLY fishing_V2.chat_takeovers
     ADD CONSTRAINT chat_takeovers_user_id_phone_number_key UNIQUE (user_id, phone_number);
 
 
@@ -627,7 +627,7 @@ ALTER TABLE ONLY fishing.chat_takeovers
 -- Name: contact_usage contact_usage_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.contact_usage
+ALTER TABLE ONLY fishing_V2.contact_usage
     ADD CONSTRAINT contact_usage_pkey PRIMARY KEY (id);
 
 
@@ -635,7 +635,7 @@ ALTER TABLE ONLY fishing.contact_usage
 -- Name: conversations conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.conversations
+ALTER TABLE ONLY fishing_V2.conversations
     ADD CONSTRAINT conversations_pkey PRIMARY KEY (id);
 
 
@@ -643,7 +643,7 @@ ALTER TABLE ONLY fishing.conversations
 -- Name: faq_usage_logs faq_usage_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.faq_usage_logs
+ALTER TABLE ONLY fishing_V2.faq_usage_logs
     ADD CONSTRAINT faq_usage_logs_pkey PRIMARY KEY (id);
 
 
@@ -651,7 +651,7 @@ ALTER TABLE ONLY fishing.faq_usage_logs
 -- Name: faqs faqs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.faqs
+ALTER TABLE ONLY fishing_V2.faqs
     ADD CONSTRAINT faqs_pkey PRIMARY KEY (id);
 
 
@@ -659,7 +659,7 @@ ALTER TABLE ONLY fishing.faqs
 -- Name: fcm_tokens fcm_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.fcm_tokens
+ALTER TABLE ONLY fishing_V2.fcm_tokens
     ADD CONSTRAINT fcm_tokens_pkey PRIMARY KEY (id);
 
 
@@ -667,7 +667,7 @@ ALTER TABLE ONLY fishing.fcm_tokens
 -- Name: fcm_tokens fcm_tokens_user_id_device_token_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.fcm_tokens
+ALTER TABLE ONLY fishing_V2.fcm_tokens
     ADD CONSTRAINT fcm_tokens_user_id_device_token_key UNIQUE (user_id, device_token);
 
 
@@ -675,7 +675,7 @@ ALTER TABLE ONLY fishing.fcm_tokens
 -- Name: leads leads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.leads
+ALTER TABLE ONLY fishing_V2.leads
     ADD CONSTRAINT leads_pkey PRIMARY KEY (id);
 
 
@@ -683,7 +683,7 @@ ALTER TABLE ONLY fishing.leads
 -- Name: leads leads_user_id_phone_number_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.leads
+ALTER TABLE ONLY fishing_V2.leads
     ADD CONSTRAINT leads_user_id_phone_number_key UNIQUE (user_id, phone_number);
 
 
@@ -691,7 +691,7 @@ ALTER TABLE ONLY fishing.leads
 -- Name: message_queue message_queue_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.message_queue
+ALTER TABLE ONLY fishing_V2.message_queue
     ADD CONSTRAINT message_queue_pkey PRIMARY KEY (id);
 
 
@@ -699,7 +699,7 @@ ALTER TABLE ONLY fishing.message_queue
 -- Name: orders orders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.orders
+ALTER TABLE ONLY fishing_V2.orders
     ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
 
 
@@ -707,7 +707,7 @@ ALTER TABLE ONLY fishing.orders
 -- Name: platform_settings platform_settings_key_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.platform_settings
+ALTER TABLE ONLY fishing_V2.platform_settings
     ADD CONSTRAINT platform_settings_key_key UNIQUE (key);
 
 
@@ -715,7 +715,7 @@ ALTER TABLE ONLY fishing.platform_settings
 -- Name: platform_settings platform_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.platform_settings
+ALTER TABLE ONLY fishing_V2.platform_settings
     ADD CONSTRAINT platform_settings_pkey PRIMARY KEY (id);
 
 
@@ -723,7 +723,7 @@ ALTER TABLE ONLY fishing.platform_settings
 -- Name: products products_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.products
+ALTER TABLE ONLY fishing_V2.products
     ADD CONSTRAINT products_pkey PRIMARY KEY (id);
 
 
@@ -731,7 +731,7 @@ ALTER TABLE ONLY fishing.products
 -- Name: profiles profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.profiles
+ALTER TABLE ONLY fishing_V2.profiles
     ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
 
 
@@ -739,7 +739,7 @@ ALTER TABLE ONLY fishing.profiles
 -- Name: profiles profiles_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.profiles
+ALTER TABLE ONLY fishing_V2.profiles
     ADD CONSTRAINT profiles_user_id_key UNIQUE (user_id);
 
 
@@ -747,7 +747,7 @@ ALTER TABLE ONLY fishing.profiles
 -- Name: settings settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.settings
+ALTER TABLE ONLY fishing_V2.settings
     ADD CONSTRAINT settings_pkey PRIMARY KEY (id);
 
 
@@ -755,7 +755,7 @@ ALTER TABLE ONLY fishing.settings
 -- Name: settings settings_user_id_key_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.settings
+ALTER TABLE ONLY fishing_V2.settings
     ADD CONSTRAINT settings_user_id_key_unique UNIQUE (user_id, key);
 
 
@@ -763,7 +763,7 @@ ALTER TABLE ONLY fishing.settings
 -- Name: staff_accounts staff_accounts_owner_id_staff_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.staff_accounts
+ALTER TABLE ONLY fishing_V2.staff_accounts
     ADD CONSTRAINT staff_accounts_owner_id_staff_user_id_key UNIQUE (owner_id, staff_user_id);
 
 
@@ -771,7 +771,7 @@ ALTER TABLE ONLY fishing.staff_accounts
 -- Name: staff_accounts staff_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.staff_accounts
+ALTER TABLE ONLY fishing_V2.staff_accounts
     ADD CONSTRAINT staff_accounts_pkey PRIMARY KEY (id);
 
 
@@ -779,7 +779,7 @@ ALTER TABLE ONLY fishing.staff_accounts
 -- Name: message_queue unique_wsender_message; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.message_queue
+ALTER TABLE ONLY fishing_V2.message_queue
     ADD CONSTRAINT unique_wsender_message UNIQUE (wsender_message_id);
 
 
@@ -787,7 +787,7 @@ ALTER TABLE ONLY fishing.message_queue
 -- Name: user_roles user_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.user_roles
+ALTER TABLE ONLY fishing_V2.user_roles
     ADD CONSTRAINT user_roles_pkey PRIMARY KEY (id);
 
 
@@ -795,7 +795,7 @@ ALTER TABLE ONLY fishing.user_roles
 -- Name: user_roles user_roles_user_id_role_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.user_roles
+ALTER TABLE ONLY fishing_V2.user_roles
     ADD CONSTRAINT user_roles_user_id_role_key UNIQUE (user_id, role);
 
 
@@ -803,7 +803,7 @@ ALTER TABLE ONLY fishing.user_roles
 -- Name: user_wsender_sessions user_wsender_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.user_wsender_sessions
+ALTER TABLE ONLY fishing_V2.user_wsender_sessions
     ADD CONSTRAINT user_wsender_sessions_pkey PRIMARY KEY (id);
 
 
@@ -811,7 +811,7 @@ ALTER TABLE ONLY fishing.user_wsender_sessions
 -- Name: user_wsender_sessions user_wsender_sessions_user_id_session_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.user_wsender_sessions
+ALTER TABLE ONLY fishing_V2.user_wsender_sessions
     ADD CONSTRAINT user_wsender_sessions_user_id_session_id_key UNIQUE (user_id, session_id);
 
 
@@ -819,189 +819,189 @@ ALTER TABLE ONLY fishing.user_wsender_sessions
 -- Name: contact_usage_unique_per_cycle; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX contact_usage_unique_per_cycle ON fishing.contact_usage USING btree (user_id, phone_number, period_start);
+CREATE UNIQUE INDEX contact_usage_unique_per_cycle ON fishing_V2.contact_usage USING btree (user_id, phone_number, period_start);
 
 
 --
 -- Name: idx_ai_usage_logs_user_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ai_usage_logs_user_created ON fishing.ai_usage_logs USING btree (user_id, created_at);
+CREATE INDEX idx_ai_usage_logs_user_created ON fishing_V2.ai_usage_logs USING btree (user_id, created_at);
 
 
 --
 -- Name: idx_contact_usage_user_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_contact_usage_user_created ON fishing.contact_usage USING btree (user_id, created_at);
+CREATE INDEX idx_contact_usage_user_created ON fishing_V2.contact_usage USING btree (user_id, created_at);
 
 
 --
 -- Name: idx_conversations_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_conversations_created_at ON fishing.conversations USING btree (created_at DESC);
+CREATE INDEX idx_conversations_created_at ON fishing_V2.conversations USING btree (created_at DESC);
 
 
 --
 -- Name: idx_conversations_phone; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_conversations_phone ON fishing.conversations USING btree (phone_number);
+CREATE INDEX idx_conversations_phone ON fishing_V2.conversations USING btree (phone_number);
 
 
 --
 -- Name: idx_faq_usage_logs_faq_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_faq_usage_logs_faq_id ON fishing.faq_usage_logs USING btree (faq_id);
+CREATE INDEX idx_faq_usage_logs_faq_id ON fishing_V2.faq_usage_logs USING btree (faq_id);
 
 
 --
 -- Name: idx_faq_usage_logs_user_phone; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_faq_usage_logs_user_phone ON fishing.faq_usage_logs USING btree (user_id, phone_number);
+CREATE INDEX idx_faq_usage_logs_user_phone ON fishing_V2.faq_usage_logs USING btree (user_id, phone_number);
 
 
 --
 -- Name: idx_leads_assigned; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_leads_assigned ON fishing.leads USING btree (assigned_to);
+CREATE INDEX idx_leads_assigned ON fishing_V2.leads USING btree (assigned_to);
 
 
 --
 -- Name: idx_leads_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_leads_user ON fishing.leads USING btree (user_id);
+CREATE INDEX idx_leads_user ON fishing_V2.leads USING btree (user_id);
 
 
 --
 -- Name: idx_message_queue_processed; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_message_queue_processed ON fishing.message_queue USING btree (processed_at) WHERE (status = 'done'::text);
+CREATE INDEX idx_message_queue_processed ON fishing_V2.message_queue USING btree (processed_at) WHERE (status = 'done'::text);
 
 
 --
 -- Name: idx_message_queue_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_message_queue_status ON fishing.message_queue USING btree (status, created_at) WHERE (status = ANY (ARRAY['pending'::text, 'failed'::text]));
+CREATE INDEX idx_message_queue_status ON fishing_V2.message_queue USING btree (status, created_at) WHERE (status = ANY (ARRAY['pending'::text, 'failed'::text]));
 
 
 --
 -- Name: idx_message_queue_status_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_message_queue_status_created ON fishing.message_queue USING btree (status, created_at) WHERE (status = ANY (ARRAY['pending'::text, 'failed'::text]));
+CREATE INDEX idx_message_queue_status_created ON fishing_V2.message_queue USING btree (status, created_at) WHERE (status = ANY (ARRAY['pending'::text, 'failed'::text]));
 
 
 --
 -- Name: idx_message_queue_user_processing; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_message_queue_user_processing ON fishing.message_queue USING btree (user_id) WHERE (status = 'processing'::text);
+CREATE INDEX idx_message_queue_user_processing ON fishing_V2.message_queue USING btree (user_id) WHERE (status = 'processing'::text);
 
 
 --
 -- Name: idx_orders_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_orders_created_at ON fishing.orders USING btree (created_at DESC);
+CREATE INDEX idx_orders_created_at ON fishing_V2.orders USING btree (created_at DESC);
 
 
 --
 -- Name: idx_orders_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_orders_status ON fishing.orders USING btree (status);
+CREATE INDEX idx_orders_status ON fishing_V2.orders USING btree (status);
 
 
 --
 -- Name: orders check_order_limit; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER check_order_limit BEFORE INSERT ON fishing.orders FOR EACH ROW EXECUTE FUNCTION fishing.enforce_order_limit();
+CREATE TRIGGER check_order_limit BEFORE INSERT ON fishing_V2.orders FOR EACH ROW EXECUTE FUNCTION fishing_V2.enforce_order_limit();
 
 
 --
 -- Name: faqs update_faqs_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_faqs_updated_at BEFORE UPDATE ON fishing.faqs FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_faqs_updated_at BEFORE UPDATE ON fishing_V2.faqs FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: fcm_tokens update_fcm_tokens_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_fcm_tokens_updated_at BEFORE UPDATE ON fishing.fcm_tokens FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_fcm_tokens_updated_at BEFORE UPDATE ON fishing_V2.fcm_tokens FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: leads update_leads_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_leads_updated_at BEFORE UPDATE ON fishing.leads FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_leads_updated_at BEFORE UPDATE ON fishing_V2.leads FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: message_queue update_message_queue_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_message_queue_updated_at BEFORE UPDATE ON fishing.message_queue FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_message_queue_updated_at BEFORE UPDATE ON fishing_V2.message_queue FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: orders update_orders_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON fishing.orders FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON fishing_V2.orders FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: platform_settings update_platform_settings_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_platform_settings_updated_at BEFORE UPDATE ON fishing.platform_settings FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_platform_settings_updated_at BEFORE UPDATE ON fishing_V2.platform_settings FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: products update_products_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON fishing.products FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON fishing_V2.products FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: profiles update_profiles_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON fishing.profiles FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON fishing_V2.profiles FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: settings update_settings_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON fishing.settings FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON fishing_V2.settings FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: staff_accounts update_staff_accounts_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_staff_accounts_updated_at BEFORE UPDATE ON fishing.staff_accounts FOR EACH ROW EXECUTE FUNCTION fishing.update_updated_at_column();
+CREATE TRIGGER update_staff_accounts_updated_at BEFORE UPDATE ON fishing_V2.staff_accounts FOR EACH ROW EXECUTE FUNCTION fishing_V2.update_updated_at_column();
 
 
 --
 -- Name: conversations conversations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.conversations
+ALTER TABLE ONLY fishing_V2.conversations
     ADD CONSTRAINT conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
@@ -1009,23 +1009,23 @@ ALTER TABLE ONLY fishing.conversations
 -- Name: faq_usage_logs faq_usage_logs_faq_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.faq_usage_logs
-    ADD CONSTRAINT faq_usage_logs_faq_id_fkey FOREIGN KEY (faq_id) REFERENCES fishing.faqs(id) ON DELETE CASCADE;
+ALTER TABLE ONLY fishing_V2.faq_usage_logs
+    ADD CONSTRAINT faq_usage_logs_faq_id_fkey FOREIGN KEY (faq_id) REFERENCES fishing_V2.faqs(id) ON DELETE CASCADE;
 
 
 --
 -- Name: faqs faqs_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.faqs
-    ADD CONSTRAINT faqs_product_id_fkey FOREIGN KEY (product_id) REFERENCES fishing.products(id) ON DELETE SET NULL;
+ALTER TABLE ONLY fishing_V2.faqs
+    ADD CONSTRAINT faqs_product_id_fkey FOREIGN KEY (product_id) REFERENCES fishing_V2.products(id) ON DELETE SET NULL;
 
 
 --
 -- Name: faqs faqs_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.faqs
+ALTER TABLE ONLY fishing_V2.faqs
     ADD CONSTRAINT faqs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
@@ -1033,7 +1033,7 @@ ALTER TABLE ONLY fishing.faqs
 -- Name: orders orders_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.orders
+ALTER TABLE ONLY fishing_V2.orders
     ADD CONSTRAINT orders_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
@@ -1041,7 +1041,7 @@ ALTER TABLE ONLY fishing.orders
 -- Name: products products_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.products
+ALTER TABLE ONLY fishing_V2.products
     ADD CONSTRAINT products_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
@@ -1049,7 +1049,7 @@ ALTER TABLE ONLY fishing.products
 -- Name: profiles profiles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.profiles
+ALTER TABLE ONLY fishing_V2.profiles
     ADD CONSTRAINT profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
@@ -1057,7 +1057,7 @@ ALTER TABLE ONLY fishing.profiles
 -- Name: settings settings_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.settings
+ALTER TABLE ONLY fishing_V2.settings
     ADD CONSTRAINT settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
@@ -1065,7 +1065,7 @@ ALTER TABLE ONLY fishing.settings
 -- Name: staff_accounts staff_accounts_staff_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.staff_accounts
+ALTER TABLE ONLY fishing_V2.staff_accounts
     ADD CONSTRAINT staff_accounts_staff_user_id_fkey FOREIGN KEY (staff_user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
@@ -1073,7 +1073,7 @@ ALTER TABLE ONLY fishing.staff_accounts
 -- Name: user_roles user_roles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.user_roles
+ALTER TABLE ONLY fishing_V2.user_roles
     ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
@@ -1081,7 +1081,7 @@ ALTER TABLE ONLY fishing.user_roles
 -- Name: user_wsender_sessions user_wsender_sessions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY fishing.user_wsender_sessions
+ALTER TABLE ONLY fishing_V2.user_wsender_sessions
     ADD CONSTRAINT user_wsender_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
@@ -1089,57 +1089,57 @@ ALTER TABLE ONLY fishing.user_wsender_sessions
 -- Name: platform_settings Authenticated users can view platform settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Authenticated users can view platform settings" ON fishing.platform_settings FOR SELECT USING ((auth.uid() IS NOT NULL));
+CREATE POLICY "Authenticated users can view platform settings" ON fishing_V2.platform_settings FOR SELECT USING ((auth.uid() IS NOT NULL));
 
 
 --
 -- Name: staff_accounts Owners can create staff; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Owners can create staff" ON fishing.staff_accounts FOR INSERT WITH CHECK ((auth.uid() = owner_id));
+CREATE POLICY "Owners can create staff" ON fishing_V2.staff_accounts FOR INSERT WITH CHECK ((auth.uid() = owner_id));
 
 
 --
 -- Name: staff_accounts Owners can delete their staff; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Owners can delete their staff" ON fishing.staff_accounts FOR DELETE USING ((auth.uid() = owner_id));
+CREATE POLICY "Owners can delete their staff" ON fishing_V2.staff_accounts FOR DELETE USING ((auth.uid() = owner_id));
 
 
 --
 -- Name: staff_accounts Owners can update their staff; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Owners can update their staff" ON fishing.staff_accounts FOR UPDATE USING ((auth.uid() = owner_id));
+CREATE POLICY "Owners can update their staff" ON fishing_V2.staff_accounts FOR UPDATE USING ((auth.uid() = owner_id));
 
 
 --
 -- Name: staff_accounts Owners can view their staff; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Owners can view their staff" ON fishing.staff_accounts FOR SELECT USING ((auth.uid() = owner_id));
+CREATE POLICY "Owners can view their staff" ON fishing_V2.staff_accounts FOR SELECT USING ((auth.uid() = owner_id));
 
 
 --
 -- Name: leads Owners manage their leads; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Owners manage their leads" ON fishing.leads TO authenticated USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Owners manage their leads" ON fishing_V2.leads TO authenticated USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: profiles Service can insert profiles; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Service can insert profiles" ON fishing.profiles FOR INSERT WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Service can insert profiles" ON fishing_V2.profiles FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: conversations Staff can create owner conversations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can create owner conversations" ON fishing.conversations FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can create owner conversations" ON fishing_V2.conversations FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = conversations.user_id) AND (sa.is_active = true) AND ('conversations'::text = ANY (sa.permissions))))));
 
 
@@ -1147,8 +1147,8 @@ CREATE POLICY "Staff can create owner conversations" ON fishing.conversations FO
 -- Name: faqs Staff can create owner faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can create owner faqs" ON fishing.faqs FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can create owner faqs" ON fishing_V2.faqs FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = faqs.user_id) AND (sa.is_active = true) AND ('faqs'::text = ANY (sa.permissions))))));
 
 
@@ -1156,8 +1156,8 @@ CREATE POLICY "Staff can create owner faqs" ON fishing.faqs FOR INSERT WITH CHEC
 -- Name: products Staff can create owner products; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can create owner products" ON fishing.products FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can create owner products" ON fishing_V2.products FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = products.user_id) AND (sa.is_active = true) AND ('products'::text = ANY (sa.permissions))))));
 
 
@@ -1165,8 +1165,8 @@ CREATE POLICY "Staff can create owner products" ON fishing.products FOR INSERT W
 -- Name: chat_takeovers Staff can manage owner takeovers; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can manage owner takeovers" ON fishing.chat_takeovers FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can manage owner takeovers" ON fishing_V2.chat_takeovers FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = chat_takeovers.user_id) AND (sa.is_active = true) AND ('conversations'::text = ANY (sa.permissions))))));
 
 
@@ -1174,8 +1174,8 @@ CREATE POLICY "Staff can manage owner takeovers" ON fishing.chat_takeovers FOR I
 -- Name: faqs Staff can update owner faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can update owner faqs" ON fishing.faqs FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can update owner faqs" ON fishing_V2.faqs FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = faqs.user_id) AND (sa.is_active = true) AND ('faqs'::text = ANY (sa.permissions))))));
 
 
@@ -1183,8 +1183,8 @@ CREATE POLICY "Staff can update owner faqs" ON fishing.faqs FOR UPDATE USING ((E
 -- Name: orders Staff can update owner orders; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can update owner orders" ON fishing.orders FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can update owner orders" ON fishing_V2.orders FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = orders.user_id) AND (sa.is_active = true) AND ('orders'::text = ANY (sa.permissions))))));
 
 
@@ -1192,8 +1192,8 @@ CREATE POLICY "Staff can update owner orders" ON fishing.orders FOR UPDATE USING
 -- Name: products Staff can update owner products; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can update owner products" ON fishing.products FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can update owner products" ON fishing_V2.products FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = products.user_id) AND (sa.is_active = true) AND ('products'::text = ANY (sa.permissions))))));
 
 
@@ -1201,8 +1201,8 @@ CREATE POLICY "Staff can update owner products" ON fishing.products FOR UPDATE U
 -- Name: chat_takeovers Staff can update owner takeovers; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can update owner takeovers" ON fishing.chat_takeovers FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can update owner takeovers" ON fishing_V2.chat_takeovers FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = chat_takeovers.user_id) AND (sa.is_active = true) AND ('conversations'::text = ANY (sa.permissions))))));
 
 
@@ -1210,15 +1210,15 @@ CREATE POLICY "Staff can update owner takeovers" ON fishing.chat_takeovers FOR U
 -- Name: staff_accounts Staff can view own record; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can view own record" ON fishing.staff_accounts FOR SELECT USING ((auth.uid() = staff_user_id));
+CREATE POLICY "Staff can view own record" ON fishing_V2.staff_accounts FOR SELECT USING ((auth.uid() = staff_user_id));
 
 
 --
 -- Name: conversations Staff can view owner conversations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can view owner conversations" ON fishing.conversations FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can view owner conversations" ON fishing_V2.conversations FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = conversations.user_id) AND (sa.is_active = true) AND ('conversations'::text = ANY (sa.permissions))))));
 
 
@@ -1226,8 +1226,8 @@ CREATE POLICY "Staff can view owner conversations" ON fishing.conversations FOR 
 -- Name: faq_usage_logs Staff can view owner faq usage logs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can view owner faq usage logs" ON fishing.faq_usage_logs FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can view owner faq usage logs" ON fishing_V2.faq_usage_logs FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = faq_usage_logs.user_id) AND (sa.is_active = true) AND ('faqs'::text = ANY (sa.permissions))))));
 
 
@@ -1235,8 +1235,8 @@ CREATE POLICY "Staff can view owner faq usage logs" ON fishing.faq_usage_logs FO
 -- Name: faqs Staff can view owner faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can view owner faqs" ON fishing.faqs FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can view owner faqs" ON fishing_V2.faqs FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = faqs.user_id) AND (sa.is_active = true) AND ('faqs'::text = ANY (sa.permissions))))));
 
 
@@ -1244,8 +1244,8 @@ CREATE POLICY "Staff can view owner faqs" ON fishing.faqs FOR SELECT USING ((EXI
 -- Name: orders Staff can view owner orders; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can view owner orders" ON fishing.orders FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can view owner orders" ON fishing_V2.orders FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = orders.user_id) AND (sa.is_active = true) AND ('orders'::text = ANY (sa.permissions))))));
 
 
@@ -1253,8 +1253,8 @@ CREATE POLICY "Staff can view owner orders" ON fishing.orders FOR SELECT USING (
 -- Name: products Staff can view owner products; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can view owner products" ON fishing.products FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can view owner products" ON fishing_V2.products FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = products.user_id) AND (sa.is_active = true) AND ('products'::text = ANY (sa.permissions))))));
 
 
@@ -1262,8 +1262,8 @@ CREATE POLICY "Staff can view owner products" ON fishing.products FOR SELECT USI
 -- Name: profiles Staff can view owner profile; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can view owner profile" ON fishing.profiles FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can view owner profile" ON fishing_V2.profiles FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = profiles.user_id) AND (sa.is_active = true)))));
 
 
@@ -1271,8 +1271,8 @@ CREATE POLICY "Staff can view owner profile" ON fishing.profiles FOR SELECT USIN
 -- Name: settings Staff can view owner settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can view owner settings" ON fishing.settings FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can view owner settings" ON fishing_V2.settings FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = settings.user_id) AND (sa.is_active = true)))));
 
 
@@ -1280,8 +1280,8 @@ CREATE POLICY "Staff can view owner settings" ON fishing.settings FOR SELECT USI
 -- Name: chat_takeovers Staff can view owner takeovers; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff can view owner takeovers" ON fishing.chat_takeovers FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM fishing.staff_accounts sa
+CREATE POLICY "Staff can view owner takeovers" ON fishing_V2.chat_takeovers FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM fishing_V2.staff_accounts sa
   WHERE ((sa.staff_user_id = auth.uid()) AND (sa.owner_id = chat_takeovers.user_id) AND (sa.is_active = true) AND ('conversations'::text = ANY (sa.permissions))))));
 
 
@@ -1289,544 +1289,544 @@ CREATE POLICY "Staff can view owner takeovers" ON fishing.chat_takeovers FOR SEL
 -- Name: leads Staff insert owner leads; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff insert owner leads" ON fishing.leads FOR INSERT TO authenticated WITH CHECK (fishing.is_staff_of(auth.uid(), user_id));
+CREATE POLICY "Staff insert owner leads" ON fishing_V2.leads FOR INSERT TO authenticated WITH CHECK (fishing_V2.is_staff_of(auth.uid(), user_id));
 
 
 --
 -- Name: leads Staff update owner leads; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff update owner leads" ON fishing.leads FOR UPDATE TO authenticated USING (fishing.is_staff_of(auth.uid(), user_id)) WITH CHECK (fishing.is_staff_of(auth.uid(), user_id));
+CREATE POLICY "Staff update owner leads" ON fishing_V2.leads FOR UPDATE TO authenticated USING (fishing_V2.is_staff_of(auth.uid(), user_id)) WITH CHECK (fishing_V2.is_staff_of(auth.uid(), user_id));
 
 
 --
 -- Name: leads Staff view owner leads; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Staff view owner leads" ON fishing.leads FOR SELECT TO authenticated USING (fishing.is_staff_of(auth.uid(), user_id));
+CREATE POLICY "Staff view owner leads" ON fishing_V2.leads FOR SELECT TO authenticated USING (fishing_V2.is_staff_of(auth.uid(), user_id));
 
 
 --
 -- Name: faqs Super admins can delete all faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can delete all faqs" ON fishing.faqs FOR DELETE USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can delete all faqs" ON fishing_V2.faqs FOR DELETE USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: platform_settings Super admins can delete platform settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can delete platform settings" ON fishing.platform_settings FOR DELETE USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can delete platform settings" ON fishing_V2.platform_settings FOR DELETE USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: user_roles Super admins can delete roles; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can delete roles" ON fishing.user_roles FOR DELETE USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can delete roles" ON fishing_V2.user_roles FOR DELETE USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: platform_settings Super admins can insert platform settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can insert platform settings" ON fishing.platform_settings FOR INSERT WITH CHECK (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can insert platform settings" ON fishing_V2.platform_settings FOR INSERT WITH CHECK (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: user_roles Super admins can manage roles; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can manage roles" ON fishing.user_roles FOR INSERT WITH CHECK (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can manage roles" ON fishing_V2.user_roles FOR INSERT WITH CHECK (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: faqs Super admins can update all faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can update all faqs" ON fishing.faqs FOR UPDATE USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can update all faqs" ON fishing_V2.faqs FOR UPDATE USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: orders Super admins can update all orders; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can update all orders" ON fishing.orders FOR UPDATE USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can update all orders" ON fishing_V2.orders FOR UPDATE USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: profiles Super admins can update all profiles; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can update all profiles" ON fishing.profiles FOR UPDATE USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can update all profiles" ON fishing_V2.profiles FOR UPDATE USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: settings Super admins can update all settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can update all settings" ON fishing.settings FOR UPDATE USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can update all settings" ON fishing_V2.settings FOR UPDATE USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: platform_settings Super admins can update platform settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can update platform settings" ON fishing.platform_settings FOR UPDATE USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can update platform settings" ON fishing_V2.platform_settings FOR UPDATE USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: user_roles Super admins can update roles; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can update roles" ON fishing.user_roles FOR UPDATE USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can update roles" ON fishing_V2.user_roles FOR UPDATE USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: ai_usage_logs Super admins can view all ai usage logs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view all ai usage logs" ON fishing.ai_usage_logs FOR SELECT USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view all ai usage logs" ON fishing_V2.ai_usage_logs FOR SELECT USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: contact_usage Super admins can view all contact usage; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view all contact usage" ON fishing.contact_usage FOR SELECT TO authenticated USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view all contact usage" ON fishing_V2.contact_usage FOR SELECT TO authenticated USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: conversations Super admins can view all conversations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view all conversations" ON fishing.conversations FOR SELECT USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view all conversations" ON fishing_V2.conversations FOR SELECT USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: faqs Super admins can view all faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view all faqs" ON fishing.faqs FOR SELECT USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view all faqs" ON fishing_V2.faqs FOR SELECT USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: orders Super admins can view all orders; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view all orders" ON fishing.orders FOR SELECT USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view all orders" ON fishing_V2.orders FOR SELECT USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: profiles Super admins can view all profiles; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view all profiles" ON fishing.profiles FOR SELECT USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view all profiles" ON fishing_V2.profiles FOR SELECT USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: user_wsender_sessions Super admins can view all sessions; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view all sessions" ON fishing.user_wsender_sessions FOR SELECT USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view all sessions" ON fishing_V2.user_wsender_sessions FOR SELECT USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: settings Super admins can view all settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view all settings" ON fishing.settings FOR SELECT USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view all settings" ON fishing_V2.settings FOR SELECT USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: staff_accounts Super admins can view all staff; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view all staff" ON fishing.staff_accounts FOR SELECT USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view all staff" ON fishing_V2.staff_accounts FOR SELECT USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: platform_settings Super admins can view platform settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins can view platform settings" ON fishing.platform_settings FOR SELECT USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins can view platform settings" ON fishing_V2.platform_settings FOR SELECT USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: leads Super admins view all leads; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Super admins view all leads" ON fishing.leads FOR SELECT TO authenticated USING (fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role));
+CREATE POLICY "Super admins view all leads" ON fishing_V2.leads FOR SELECT TO authenticated USING (fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role));
 
 
 --
 -- Name: conversations Users can create own conversations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create own conversations" ON fishing.conversations FOR INSERT WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Users can create own conversations" ON fishing_V2.conversations FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: faqs Users can create own faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create own faqs" ON fishing.faqs FOR INSERT WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Users can create own faqs" ON fishing_V2.faqs FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: orders Users can create own orders; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create own orders" ON fishing.orders FOR INSERT WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Users can create own orders" ON fishing_V2.orders FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: products Users can create own products; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create own products" ON fishing.products FOR INSERT WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Users can create own products" ON fishing_V2.products FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: user_wsender_sessions Users can create own sessions; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create own sessions" ON fishing.user_wsender_sessions FOR INSERT WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Users can create own sessions" ON fishing_V2.user_wsender_sessions FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: settings Users can create own settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create own settings" ON fishing.settings FOR INSERT WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Users can create own settings" ON fishing_V2.settings FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: conversations Users can delete own conversations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can delete own conversations" ON fishing.conversations FOR DELETE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can delete own conversations" ON fishing_V2.conversations FOR DELETE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: faqs Users can delete own faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can delete own faqs" ON fishing.faqs FOR DELETE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can delete own faqs" ON fishing_V2.faqs FOR DELETE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: orders Users can delete own orders; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can delete own orders" ON fishing.orders FOR DELETE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can delete own orders" ON fishing_V2.orders FOR DELETE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: products Users can delete own products; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can delete own products" ON fishing.products FOR DELETE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can delete own products" ON fishing_V2.products FOR DELETE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: user_wsender_sessions Users can delete own sessions; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can delete own sessions" ON fishing.user_wsender_sessions FOR DELETE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can delete own sessions" ON fishing_V2.user_wsender_sessions FOR DELETE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: settings Users can delete own settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can delete own settings" ON fishing.settings FOR DELETE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can delete own settings" ON fishing_V2.settings FOR DELETE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: fcm_tokens Users can delete own tokens; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can delete own tokens" ON fishing.fcm_tokens FOR DELETE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can delete own tokens" ON fishing_V2.fcm_tokens FOR DELETE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: chat_takeovers Users can delete their own takeovers; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can delete their own takeovers" ON fishing.chat_takeovers FOR DELETE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can delete their own takeovers" ON fishing_V2.chat_takeovers FOR DELETE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: fcm_tokens Users can insert own tokens; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can insert own tokens" ON fishing.fcm_tokens FOR INSERT WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Users can insert own tokens" ON fishing_V2.fcm_tokens FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: chat_takeovers Users can insert their own takeovers; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can insert their own takeovers" ON fishing.chat_takeovers FOR INSERT WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY "Users can insert their own takeovers" ON fishing_V2.chat_takeovers FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
 --
 -- Name: conversations Users can update own conversations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update own conversations" ON fishing.conversations FOR UPDATE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can update own conversations" ON fishing_V2.conversations FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: faqs Users can update own faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update own faqs" ON fishing.faqs FOR UPDATE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can update own faqs" ON fishing_V2.faqs FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: orders Users can update own orders; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update own orders" ON fishing.orders FOR UPDATE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can update own orders" ON fishing_V2.orders FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: products Users can update own products; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update own products" ON fishing.products FOR UPDATE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can update own products" ON fishing_V2.products FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: user_wsender_sessions Users can update own sessions; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update own sessions" ON fishing.user_wsender_sessions FOR UPDATE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can update own sessions" ON fishing_V2.user_wsender_sessions FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: settings Users can update own settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update own settings" ON fishing.settings FOR UPDATE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can update own settings" ON fishing_V2.settings FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: fcm_tokens Users can update own tokens; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update own tokens" ON fishing.fcm_tokens FOR UPDATE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can update own tokens" ON fishing_V2.fcm_tokens FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: profiles Users can update their own profile; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update their own profile" ON fishing.profiles FOR UPDATE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can update their own profile" ON fishing_V2.profiles FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: chat_takeovers Users can update their own takeovers; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update their own takeovers" ON fishing.chat_takeovers FOR UPDATE USING ((auth.uid() = user_id));
+CREATE POLICY "Users can update their own takeovers" ON fishing_V2.chat_takeovers FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
 -- Name: ai_usage_logs Users can view own ai usage logs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own ai usage logs" ON fishing.ai_usage_logs FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view own ai usage logs" ON fishing_V2.ai_usage_logs FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: contact_usage Users can view own contact usage; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own contact usage" ON fishing.contact_usage FOR SELECT TO authenticated USING (((auth.uid() = user_id) OR fishing.is_staff_of(auth.uid(), user_id)));
+CREATE POLICY "Users can view own contact usage" ON fishing_V2.contact_usage FOR SELECT TO authenticated USING (((auth.uid() = user_id) OR fishing_V2.is_staff_of(auth.uid(), user_id)));
 
 
 --
 -- Name: conversations Users can view own conversations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own conversations" ON fishing.conversations FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view own conversations" ON fishing_V2.conversations FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: faq_usage_logs Users can view own faq usage logs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own faq usage logs" ON fishing.faq_usage_logs FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view own faq usage logs" ON fishing_V2.faq_usage_logs FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: faqs Users can view own faqs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own faqs" ON fishing.faqs FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view own faqs" ON fishing_V2.faqs FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: orders Users can view own orders; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own orders" ON fishing.orders FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view own orders" ON fishing_V2.orders FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: products Users can view own products; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own products" ON fishing.products FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view own products" ON fishing_V2.products FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: user_roles Users can view own roles; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own roles" ON fishing.user_roles FOR SELECT USING (((auth.uid() = user_id) OR fishing.has_role(auth.uid(), 'super_admin'::fishing.app_role)));
+CREATE POLICY "Users can view own roles" ON fishing_V2.user_roles FOR SELECT USING (((auth.uid() = user_id) OR fishing_V2.has_role(auth.uid(), 'super_admin'::fishing_V2.app_role)));
 
 
 --
 -- Name: user_wsender_sessions Users can view own sessions; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own sessions" ON fishing.user_wsender_sessions FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view own sessions" ON fishing_V2.user_wsender_sessions FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: settings Users can view own settings; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own settings" ON fishing.settings FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view own settings" ON fishing_V2.settings FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: fcm_tokens Users can view own tokens; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view own tokens" ON fishing.fcm_tokens FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view own tokens" ON fishing_V2.fcm_tokens FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: profiles Users can view their own profile; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view their own profile" ON fishing.profiles FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view their own profile" ON fishing_V2.profiles FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: chat_takeovers Users can view their own takeovers; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can view their own takeovers" ON fishing.chat_takeovers FOR SELECT USING ((auth.uid() = user_id));
+CREATE POLICY "Users can view their own takeovers" ON fishing_V2.chat_takeovers FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
 -- Name: ai_usage_logs; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.ai_usage_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.ai_usage_logs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: chat_takeovers; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.chat_takeovers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.chat_takeovers ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: contact_usage; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.contact_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.contact_usage ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: conversations; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.conversations ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: faq_usage_logs; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.faq_usage_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.faq_usage_logs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: faqs; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.faqs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.faqs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: fcm_tokens; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.fcm_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.fcm_tokens ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: leads; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.leads ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: message_queue; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.message_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.message_queue ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: orders; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.orders ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: platform_settings; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.platform_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.platform_settings ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: products; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.products ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: profiles; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.profiles ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: settings; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.settings ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: staff_accounts; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.staff_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.staff_accounts ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: user_roles; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.user_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.user_roles ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: user_wsender_sessions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE fishing.user_wsender_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fishing_V2.user_wsender_sessions ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: -
@@ -1842,261 +1842,261 @@ GRANT USAGE ON SCHEMA public TO service_role;
 -- Name: FUNCTION can_read_usage(_user_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.can_read_usage(_user_id uuid) TO anon;
-GRANT ALL ON FUNCTION fishing.can_read_usage(_user_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION fishing.can_read_usage(_user_id uuid) TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.can_read_usage(_user_id uuid) TO anon;
+GRANT ALL ON FUNCTION fishing_V2.can_read_usage(_user_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.can_read_usage(_user_id uuid) TO service_role;
 
 
 --
 -- Name: FUNCTION enforce_order_limit(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.enforce_order_limit() TO anon;
-GRANT ALL ON FUNCTION fishing.enforce_order_limit() TO authenticated;
-GRANT ALL ON FUNCTION fishing.enforce_order_limit() TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.enforce_order_limit() TO anon;
+GRANT ALL ON FUNCTION fishing_V2.enforce_order_limit() TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.enforce_order_limit() TO service_role;
 
 
 --
 -- Name: FUNCTION get_ai_message_usage(_user_id uuid, _since timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.get_ai_message_usage(_user_id uuid, _since timestamp with time zone) TO anon;
-GRANT ALL ON FUNCTION fishing.get_ai_message_usage(_user_id uuid, _since timestamp with time zone) TO authenticated;
-GRANT ALL ON FUNCTION fishing.get_ai_message_usage(_user_id uuid, _since timestamp with time zone) TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.get_ai_message_usage(_user_id uuid, _since timestamp with time zone) TO anon;
+GRANT ALL ON FUNCTION fishing_V2.get_ai_message_usage(_user_id uuid, _since timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.get_ai_message_usage(_user_id uuid, _since timestamp with time zone) TO service_role;
 
 
 --
 -- Name: FUNCTION get_contact_usage(_user_id uuid, _since timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.get_contact_usage(_user_id uuid, _since timestamp with time zone) TO anon;
-GRANT ALL ON FUNCTION fishing.get_contact_usage(_user_id uuid, _since timestamp with time zone) TO authenticated;
-GRANT ALL ON FUNCTION fishing.get_contact_usage(_user_id uuid, _since timestamp with time zone) TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.get_contact_usage(_user_id uuid, _since timestamp with time zone) TO anon;
+GRANT ALL ON FUNCTION fishing_V2.get_contact_usage(_user_id uuid, _since timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.get_contact_usage(_user_id uuid, _since timestamp with time zone) TO service_role;
 
 
 --
 -- Name: FUNCTION get_staff_owner_id(_user_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.get_staff_owner_id(_user_id uuid) TO anon;
-GRANT ALL ON FUNCTION fishing.get_staff_owner_id(_user_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION fishing.get_staff_owner_id(_user_id uuid) TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.get_staff_owner_id(_user_id uuid) TO anon;
+GRANT ALL ON FUNCTION fishing_V2.get_staff_owner_id(_user_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.get_staff_owner_id(_user_id uuid) TO service_role;
 
 
 --
 -- Name: FUNCTION handle_new_user(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.handle_new_user() TO anon;
-GRANT ALL ON FUNCTION fishing.handle_new_user() TO authenticated;
-GRANT ALL ON FUNCTION fishing.handle_new_user() TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.handle_new_user() TO anon;
+GRANT ALL ON FUNCTION fishing_V2.handle_new_user() TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.handle_new_user() TO service_role;
 
 
 --
 -- Name: FUNCTION handle_new_user_role(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.handle_new_user_role() TO anon;
-GRANT ALL ON FUNCTION fishing.handle_new_user_role() TO authenticated;
-GRANT ALL ON FUNCTION fishing.handle_new_user_role() TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.handle_new_user_role() TO anon;
+GRANT ALL ON FUNCTION fishing_V2.handle_new_user_role() TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.handle_new_user_role() TO service_role;
 
 
 --
 -- Name: FUNCTION handle_new_user_settings(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.handle_new_user_settings() TO anon;
-GRANT ALL ON FUNCTION fishing.handle_new_user_settings() TO authenticated;
-GRANT ALL ON FUNCTION fishing.handle_new_user_settings() TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.handle_new_user_settings() TO anon;
+GRANT ALL ON FUNCTION fishing_V2.handle_new_user_settings() TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.handle_new_user_settings() TO service_role;
 
 
 --
--- Name: FUNCTION has_role(_user_id uuid, _role fishing.app_role); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION has_role(_user_id uuid, _role fishing_V2.app_role); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.has_role(_user_id uuid, _role fishing.app_role) TO anon;
-GRANT ALL ON FUNCTION fishing.has_role(_user_id uuid, _role fishing.app_role) TO authenticated;
-GRANT ALL ON FUNCTION fishing.has_role(_user_id uuid, _role fishing.app_role) TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.has_role(_user_id uuid, _role fishing_V2.app_role) TO anon;
+GRANT ALL ON FUNCTION fishing_V2.has_role(_user_id uuid, _role fishing_V2.app_role) TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.has_role(_user_id uuid, _role fishing_V2.app_role) TO service_role;
 
 
 --
 -- Name: FUNCTION is_admin(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.is_admin() TO anon;
-GRANT ALL ON FUNCTION fishing.is_admin() TO authenticated;
-GRANT ALL ON FUNCTION fishing.is_admin() TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.is_admin() TO anon;
+GRANT ALL ON FUNCTION fishing_V2.is_admin() TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.is_admin() TO service_role;
 
 
 --
 -- Name: FUNCTION is_staff_of(_staff_user_id uuid, _owner_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.is_staff_of(_staff_user_id uuid, _owner_id uuid) TO anon;
-GRANT ALL ON FUNCTION fishing.is_staff_of(_staff_user_id uuid, _owner_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION fishing.is_staff_of(_staff_user_id uuid, _owner_id uuid) TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.is_staff_of(_staff_user_id uuid, _owner_id uuid) TO anon;
+GRANT ALL ON FUNCTION fishing_V2.is_staff_of(_staff_user_id uuid, _owner_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.is_staff_of(_staff_user_id uuid, _owner_id uuid) TO service_role;
 
 
 --
 -- Name: FUNCTION update_updated_at_column(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION fishing.update_updated_at_column() TO anon;
-GRANT ALL ON FUNCTION fishing.update_updated_at_column() TO authenticated;
-GRANT ALL ON FUNCTION fishing.update_updated_at_column() TO service_role;
+GRANT ALL ON FUNCTION fishing_V2.update_updated_at_column() TO anon;
+GRANT ALL ON FUNCTION fishing_V2.update_updated_at_column() TO authenticated;
+GRANT ALL ON FUNCTION fishing_V2.update_updated_at_column() TO service_role;
 
 
 --
 -- Name: TABLE ai_usage_logs; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.ai_usage_logs TO anon;
-GRANT ALL ON TABLE fishing.ai_usage_logs TO authenticated;
-GRANT ALL ON TABLE fishing.ai_usage_logs TO service_role;
+GRANT ALL ON TABLE fishing_V2.ai_usage_logs TO anon;
+GRANT ALL ON TABLE fishing_V2.ai_usage_logs TO authenticated;
+GRANT ALL ON TABLE fishing_V2.ai_usage_logs TO service_role;
 
 
 --
 -- Name: TABLE chat_takeovers; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.chat_takeovers TO anon;
-GRANT ALL ON TABLE fishing.chat_takeovers TO authenticated;
-GRANT ALL ON TABLE fishing.chat_takeovers TO service_role;
+GRANT ALL ON TABLE fishing_V2.chat_takeovers TO anon;
+GRANT ALL ON TABLE fishing_V2.chat_takeovers TO authenticated;
+GRANT ALL ON TABLE fishing_V2.chat_takeovers TO service_role;
 
 
 --
 -- Name: TABLE contact_usage; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.contact_usage TO anon;
-GRANT ALL ON TABLE fishing.contact_usage TO authenticated;
-GRANT ALL ON TABLE fishing.contact_usage TO service_role;
+GRANT ALL ON TABLE fishing_V2.contact_usage TO anon;
+GRANT ALL ON TABLE fishing_V2.contact_usage TO authenticated;
+GRANT ALL ON TABLE fishing_V2.contact_usage TO service_role;
 
 
 --
 -- Name: TABLE conversations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.conversations TO anon;
-GRANT ALL ON TABLE fishing.conversations TO authenticated;
-GRANT ALL ON TABLE fishing.conversations TO service_role;
+GRANT ALL ON TABLE fishing_V2.conversations TO anon;
+GRANT ALL ON TABLE fishing_V2.conversations TO authenticated;
+GRANT ALL ON TABLE fishing_V2.conversations TO service_role;
 
 
 --
 -- Name: TABLE faq_usage_logs; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.faq_usage_logs TO anon;
-GRANT ALL ON TABLE fishing.faq_usage_logs TO authenticated;
-GRANT ALL ON TABLE fishing.faq_usage_logs TO service_role;
+GRANT ALL ON TABLE fishing_V2.faq_usage_logs TO anon;
+GRANT ALL ON TABLE fishing_V2.faq_usage_logs TO authenticated;
+GRANT ALL ON TABLE fishing_V2.faq_usage_logs TO service_role;
 
 
 --
 -- Name: TABLE faqs; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.faqs TO anon;
-GRANT ALL ON TABLE fishing.faqs TO authenticated;
-GRANT ALL ON TABLE fishing.faqs TO service_role;
+GRANT ALL ON TABLE fishing_V2.faqs TO anon;
+GRANT ALL ON TABLE fishing_V2.faqs TO authenticated;
+GRANT ALL ON TABLE fishing_V2.faqs TO service_role;
 
 
 --
 -- Name: TABLE fcm_tokens; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.fcm_tokens TO anon;
-GRANT ALL ON TABLE fishing.fcm_tokens TO authenticated;
-GRANT ALL ON TABLE fishing.fcm_tokens TO service_role;
+GRANT ALL ON TABLE fishing_V2.fcm_tokens TO anon;
+GRANT ALL ON TABLE fishing_V2.fcm_tokens TO authenticated;
+GRANT ALL ON TABLE fishing_V2.fcm_tokens TO service_role;
 
 
 --
 -- Name: TABLE leads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.leads TO anon;
-GRANT ALL ON TABLE fishing.leads TO authenticated;
-GRANT ALL ON TABLE fishing.leads TO service_role;
+GRANT ALL ON TABLE fishing_V2.leads TO anon;
+GRANT ALL ON TABLE fishing_V2.leads TO authenticated;
+GRANT ALL ON TABLE fishing_V2.leads TO service_role;
 
 
 --
 -- Name: TABLE message_queue; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.message_queue TO anon;
-GRANT ALL ON TABLE fishing.message_queue TO authenticated;
-GRANT ALL ON TABLE fishing.message_queue TO service_role;
+GRANT ALL ON TABLE fishing_V2.message_queue TO anon;
+GRANT ALL ON TABLE fishing_V2.message_queue TO authenticated;
+GRANT ALL ON TABLE fishing_V2.message_queue TO service_role;
 
 
 --
 -- Name: TABLE orders; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.orders TO anon;
-GRANT ALL ON TABLE fishing.orders TO authenticated;
-GRANT ALL ON TABLE fishing.orders TO service_role;
+GRANT ALL ON TABLE fishing_V2.orders TO anon;
+GRANT ALL ON TABLE fishing_V2.orders TO authenticated;
+GRANT ALL ON TABLE fishing_V2.orders TO service_role;
 
 
 --
 -- Name: TABLE platform_settings; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.platform_settings TO anon;
-GRANT ALL ON TABLE fishing.platform_settings TO authenticated;
-GRANT ALL ON TABLE fishing.platform_settings TO service_role;
+GRANT ALL ON TABLE fishing_V2.platform_settings TO anon;
+GRANT ALL ON TABLE fishing_V2.platform_settings TO authenticated;
+GRANT ALL ON TABLE fishing_V2.platform_settings TO service_role;
 
 
 --
 -- Name: TABLE products; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.products TO anon;
-GRANT ALL ON TABLE fishing.products TO authenticated;
-GRANT ALL ON TABLE fishing.products TO service_role;
+GRANT ALL ON TABLE fishing_V2.products TO anon;
+GRANT ALL ON TABLE fishing_V2.products TO authenticated;
+GRANT ALL ON TABLE fishing_V2.products TO service_role;
 
 
 --
 -- Name: TABLE profiles; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.profiles TO anon;
-GRANT ALL ON TABLE fishing.profiles TO authenticated;
-GRANT ALL ON TABLE fishing.profiles TO service_role;
+GRANT ALL ON TABLE fishing_V2.profiles TO anon;
+GRANT ALL ON TABLE fishing_V2.profiles TO authenticated;
+GRANT ALL ON TABLE fishing_V2.profiles TO service_role;
 
 
 --
 -- Name: TABLE settings; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.settings TO anon;
-GRANT ALL ON TABLE fishing.settings TO authenticated;
-GRANT ALL ON TABLE fishing.settings TO service_role;
+GRANT ALL ON TABLE fishing_V2.settings TO anon;
+GRANT ALL ON TABLE fishing_V2.settings TO authenticated;
+GRANT ALL ON TABLE fishing_V2.settings TO service_role;
 
 
 --
 -- Name: TABLE staff_accounts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.staff_accounts TO anon;
-GRANT ALL ON TABLE fishing.staff_accounts TO authenticated;
-GRANT ALL ON TABLE fishing.staff_accounts TO service_role;
+GRANT ALL ON TABLE fishing_V2.staff_accounts TO anon;
+GRANT ALL ON TABLE fishing_V2.staff_accounts TO authenticated;
+GRANT ALL ON TABLE fishing_V2.staff_accounts TO service_role;
 
 
 --
 -- Name: TABLE user_roles; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.user_roles TO anon;
-GRANT ALL ON TABLE fishing.user_roles TO authenticated;
-GRANT ALL ON TABLE fishing.user_roles TO service_role;
+GRANT ALL ON TABLE fishing_V2.user_roles TO anon;
+GRANT ALL ON TABLE fishing_V2.user_roles TO authenticated;
+GRANT ALL ON TABLE fishing_V2.user_roles TO service_role;
 
 
 --
 -- Name: TABLE user_wsender_sessions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE fishing.user_wsender_sessions TO anon;
-GRANT ALL ON TABLE fishing.user_wsender_sessions TO authenticated;
-GRANT ALL ON TABLE fishing.user_wsender_sessions TO service_role;
+GRANT ALL ON TABLE fishing_V2.user_wsender_sessions TO anon;
+GRANT ALL ON TABLE fishing_V2.user_wsender_sessions TO authenticated;
+GRANT ALL ON TABLE fishing_V2.user_wsender_sessions TO service_role;
 
 
 --
@@ -2142,18 +2142,18 @@ GRANT ALL ON TABLE fishing.user_wsender_sessions TO service_role;
 \unrestrict GCoNOs7mBfXioTfTnsPcdgMmKCwWOcfA0SlfN3WrM1XpO6Nhmj9aKeXA6JwDskO
 
 
--- Extra grants for fishing schema
-GRANT USAGE, CREATE ON SCHEMA fishing TO anon, authenticated, service_role, postgres;
-GRANT ALL ON ALL TABLES IN SCHEMA fishing TO anon, authenticated, service_role, postgres;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA fishing TO anon, authenticated, service_role, postgres;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA fishing TO anon, authenticated, service_role, postgres;
+-- Extra grants for fishing_V2 schema
+GRANT USAGE, CREATE ON SCHEMA fishing_V2 TO anon, authenticated, service_role, postgres;
+GRANT ALL ON ALL TABLES IN SCHEMA fishing_V2 TO anon, authenticated, service_role, postgres;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA fishing_V2 TO anon, authenticated, service_role, postgres;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA fishing_V2 TO anon, authenticated, service_role, postgres;
 
-ALTER DEFAULT PRIVILEGES IN SCHEMA fishing GRANT ALL ON TABLES TO anon, authenticated, service_role, postgres;
-ALTER DEFAULT PRIVILEGES IN SCHEMA fishing GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role, postgres;
-ALTER DEFAULT PRIVILEGES IN SCHEMA fishing GRANT ALL ON SEQUENCES TO anon, authenticated, service_role, postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA fishing_V2 GRANT ALL ON TABLES TO anon, authenticated, service_role, postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA fishing_V2 GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role, postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA fishing_V2 GRANT ALL ON SEQUENCES TO anon, authenticated, service_role, postgres;
 
--- Seed platform_settings in fishing schema
-INSERT INTO fishing.platform_settings (key, value)
+-- Seed platform_settings in fishing_V2 schema
+INSERT INTO fishing_V2.platform_settings (key, value)
 VALUES (
   'plan_limits',
   '{

@@ -18,7 +18,13 @@ serve(async (req: Request) => {
     try {
       await Deno.stat(servicePath);
     } catch {
-      if (functionName.endsWith('_fishing')) {
+      if (functionName.endsWith('_fishing_V2')) {
+        const base = functionName.replace(/_fishing_V2$/, '');
+        try {
+          await Deno.stat(`/home/deno/functions/${base}`);
+          servicePath = `/home/deno/functions/${base}`;
+        } catch {}
+      } else if (functionName.endsWith('_fishing')) {
         const base = functionName.replace(/_fishing$/, '');
         try {
           await Deno.stat(`/home/deno/functions/${base}`);
@@ -26,9 +32,14 @@ serve(async (req: Request) => {
         } catch {}
       } else {
         try {
-          await Deno.stat(`/home/deno/functions/${functionName}_fishing`);
-          servicePath = `/home/deno/functions/${functionName}_fishing`;
-        } catch {}
+          await Deno.stat(`/home/deno/functions/${functionName}_fishing_V2`);
+          servicePath = `/home/deno/functions/${functionName}_fishing_V2`;
+        } catch {
+          try {
+            await Deno.stat(`/home/deno/functions/${functionName}_fishing`);
+            servicePath = `/home/deno/functions/${functionName}_fishing`;
+          } catch {}
+        }
       }
     }
 

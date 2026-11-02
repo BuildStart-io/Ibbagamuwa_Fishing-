@@ -61,7 +61,7 @@ serve(async (req) => {
     console.log(`Admin action: ${action} by ${caller.id}`);
 
     const triggerCrmSync = () => {
-      fetch(`${supabaseUrl}/functions/v1/sync-usage-crm-global_fishing`, {
+      fetch(`${supabaseUrl}/functions/v1/sync-usage-crm-global_fishing_V2`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${supabaseAnonKey}`, "Content-Type": "application/json" }
       }).catch(e => console.error("CRM sync trigger failed", e));
