@@ -17,9 +17,12 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const dbSchema = (Deno.env.get("DB_SCHEMA") || "fishing_v2").toLowerCase();
     
     // We use the service role key to bypass RLS and read all customer usage
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      db: { schema: dbSchema },
+    });
 
     console.log("Starting CRM usage sync...");
 

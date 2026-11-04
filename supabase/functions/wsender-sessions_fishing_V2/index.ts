@@ -118,7 +118,10 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const dbSchema = (Deno.env.get("DB_SCHEMA") || "fishing_v2").toLowerCase();
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      db: { schema: dbSchema },
+    });
 
     // Identify the calling user from the JWT (token already verified by gateway = false; we self-check)
     const authHeader = req.headers.get("authorization") || "";
