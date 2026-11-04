@@ -14,7 +14,10 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const dbSchema = (Deno.env.get("DB_SCHEMA") || "fishing_v2").toLowerCase();
+  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    db: { schema: dbSchema },
+  });
 
   let triggerSource = "cron";
   let triggerCorrelationId = "";
@@ -400,6 +403,11 @@ async function processMessage(
   }
 
   mark("send_end");
+
+  // Check if lead is qualified (with location) and notify owner if not already notified
+  await maybeNotifyQualifiedLead(
+    supabase, supabaseUrl, supabaseServiceKey, userId, phoneNumber, senderName, sessionApiKey, corrId
+  );
 }
 
 async function handleWelcomeMessage(
@@ -623,10 +631,9 @@ async function registerContact(supabase: any, userId: string, phoneNumber: strin
 }
 
 /**
- * Growth-plan only: when a contact crosses the qualified-lead threshold
- * (6 inbound messages), send a plain (non-AI) WhatsApp alert to the owner
- * number configured in Settings → Chatbot → Order Notifications.
- * Fires exactly once, on the 6th inbound message.
+ * Growth-plan / Enterprise: when a contact is identified as a qualified lead
+ * (status is qualified_lead or location is provided, or crossed threshold), send a
+ * WhatsApp alert to the owner number with their location and details.
  */
 async function maybeNotifyQualifiedLead(
   supabase: any,
@@ -646,6 +653,17 @@ async function maybeNotifyQualifiedLead(
       .maybeSingle();
     if (profile?.plan_tier !== "enterprise") return;
 
+    // Check existing lead record
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("phone_number", phoneNumber)
+      .maybeSingle();
+
+    const alreadyNotified = (lead?.custom_fields as any)?.notified_qualified === true;
+    if (alreadyNotified) return;
+
     const { count: inboundCount } = await supabase
       .from("conversations")
       .select("id", { count: "exact", head: true })
@@ -653,7 +671,8 @@ async function maybeNotifyQualifiedLead(
       .eq("phone_number", phoneNumber)
       .eq("direction", "inbound");
 
-    if ((inboundCount || 0) !== 6) return; // only the moment they qualify
+    const isQualified = lead?.status === "qualified_lead" || Boolean(lead?.location) || (inboundCount || 0) >= 6;
+    if (!isQualified) return;
 
     const { data: notifSettings } = await supabase
       .from("settings")
@@ -670,23 +689,13 @@ async function maybeNotifyQualifiedLead(
       ownerPhone = "94" + ownerPhone;
     }
 
-    const { data: lastMsgs } = await supabase
-      .from("conversations")
-      .select("message, created_at")
-      .eq("user_id", userId)
-      .eq("phone_number", phoneNumber)
-      .eq("direction", "inbound")
-      .order("created_at", { ascending: false })
-      .limit(3);
-
-    const messages = (lastMsgs || [])
-      .slice()
-      .reverse()
-      .map((m: any) => `• ${String(m.message || "").substring(0, 300)}`)
-      .join("\n");
-
     const displayPhone = String(phoneNumber || "").split("@")[0];
-    const message = `🌟 QUALIFIED LEAD\n👤 ${senderName || "Unknown"}\n📱 ${displayPhone}\n\n🗨️ Last 3 messages:\n${messages}`;
+    const customerLocation = lead?.location || lead?.district || "Pending capture";
+    const packageInterest = lead?.package_interest || "Under discussion";
+
+    let message = `🌟 QUALIFIED LEAD (Ibbagamuwa Fishing Centre)\n👤 Name: ${lead?.customer_name || senderName || "Unknown"}\n📱 Contact: ${displayPhone}\n📍 Location: ${customerLocation}\n🎣 Package: ${packageInterest}`;
+    if (lead?.purchase_timeline) message += `\n⏱️ Timeline: ${lead.purchase_timeline}`;
+    if (lead?.payment_preference) message += `\n💳 Payment: ${lead.payment_preference === "cod" ? "Cash on Delivery (COD)" : "Bank Transfer"}`;
 
     let sendApiKey = sessionApiKey || null;
     if (!sendApiKey) {
@@ -708,10 +717,21 @@ async function maybeNotifyQualifiedLead(
       },
       body: JSON.stringify({ to: ownerPhone, message, sessionApiKey: sendApiKey }),
     });
+
     if (!res.ok) {
       console.error(`[${corrId}] Lead notification failed:`, (await res.text()).substring(0, 200));
     } else {
       console.log(`[${corrId}] Qualified lead notification sent to ${ownerPhone}`);
+      if (lead?.id) {
+        const customFields = (lead.custom_fields || {}) as Record<string, any>;
+        await supabase
+          .from("leads")
+          .update({
+            custom_fields: { ...customFields, notified_qualified: true },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", lead.id);
+      }
     }
   } catch (e) {
     console.error(`[${corrId}] maybeNotifyQualifiedLead failed:`, (e as Error).message);

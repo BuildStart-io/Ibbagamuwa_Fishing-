@@ -423,9 +423,17 @@ CREATE TABLE public.leads (
     phone_number text NOT NULL,
     customer_name text,
     assigned_to uuid,
-    status text DEFAULT 'new'::text NOT NULL,
+    status text DEFAULT 'new_inquiry'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    location text,
+    district text,
+    package_interest text,
+    quantity integer DEFAULT 1,
+    purchase_timeline text,
+    payment_preference text,
+    qualification_notes text,
+    custom_fields jsonb DEFAULT '{}'::jsonb
 );
 
 

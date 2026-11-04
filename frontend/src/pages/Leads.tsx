@@ -18,16 +18,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Sparkles, Lock, Users, Search } from "lucide-react";
+import { MessageSquare, Sparkles, Lock, Users, Search, MapPin, Package, Clock, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// 7 PRD-mandated lifecycle stages (PRD Section 3.5)
 export const LEAD_STATUSES = [
-  { value: "new", label: "New" },
-  { value: "reached", label: "Reached" },
-  { value: "follow_up", label: "Follow Up" },
-  { value: "converted", label: "Converted" },
-  { value: "lost", label: "Lost" },
+  { value: "new_inquiry", label: "New Inquiry" },
+  { value: "exploring_packages", label: "Exploring Packages" },
+  { value: "qualification_in_progress", label: "Qualifying" },
+  { value: "qualified_lead", label: "Qualified Lead (Location)" },
+  { value: "bank_transfer_pending", label: "Bank Transfer Pending" },
+  { value: "cod_confirmed", label: "COD Confirmed" },
+  { value: "filtered_out", label: "Filtered Out / Casual" },
 ];
+
+export const normalizeLeadStatus = (raw: string | null | undefined): string => {
+  if (!raw) return "new_inquiry";
+  if (raw === "new") return "new_inquiry";
+  if (raw === "reached") return "exploring_packages";
+  if (raw === "follow_up") return "qualification_in_progress";
+  if (raw === "converted") return "cod_confirmed";
+  if (raw === "lost") return "filtered_out";
+  return raw;
+};
 
 const UNASSIGNED = "__unassigned__";
 const ALL = "__all__";
@@ -45,6 +58,12 @@ interface LeadRow {
   customer_name: string;
   assigned_to: string | null;
   status: string;
+  location: string | null;
+  district: string | null;
+  package_interest: string | null;
+  quantity: number;
+  purchase_timeline: string | null;
+  payment_preference: string | null;
   inbound_count: number;
   has_order: boolean;
   last_time: string | null;
@@ -63,6 +82,7 @@ export default function Leads() {
   const [search, setSearch] = useState("");
   const [filterStaff, setFilterStaff] = useState<string>(ALL);
   const [filterStatus, setFilterStatus] = useState<string>(ALL);
+  const [filterDistrict, setFilterDistrict] = useState<string>(ALL);
   const [qualifiedOnly, setQualifiedOnly] = useState(false);
 
   const isOwner = !isStaff;
@@ -82,11 +102,11 @@ export default function Leads() {
           .order("created_at", { ascending: false }),
         supabase
           .from("orders")
-          .select("customer_phone, whatsapp_phone")
+          .select("customer_phone, whatsapp_phone, customer_address, district")
           .eq("user_id", effectiveUserId),
         supabase
           .from("leads" as any)
-          .select("id, phone_number, customer_name, assigned_to, status")
+          .select("id, phone_number, customer_name, assigned_to, status, location, district, package_interest, quantity, purchase_timeline, payment_preference")
           .eq("user_id", effectiveUserId),
         supabase
           .from("staff_accounts")
@@ -106,9 +126,20 @@ export default function Leads() {
       setAutoAssign(Boolean((settingRes.data?.value as any)?.enabled));
 
       const orderPhones = new Set<string>();
+      const orderLocationMap = new Map<string, { address: string | null; district: string | null }>();
       (orderRes.data || []).forEach((o: any) => {
-        if (o.customer_phone) orderPhones.add(String(o.customer_phone));
-        if (o.whatsapp_phone) orderPhones.add(String(o.whatsapp_phone));
+        if (o.customer_phone) {
+          orderPhones.add(String(o.customer_phone));
+          if (!orderLocationMap.has(String(o.customer_phone))) {
+            orderLocationMap.set(String(o.customer_phone), { address: o.customer_address, district: o.district });
+          }
+        }
+        if (o.whatsapp_phone) {
+          orderPhones.add(String(o.whatsapp_phone));
+          if (!orderLocationMap.has(String(o.whatsapp_phone))) {
+            orderLocationMap.set(String(o.whatsapp_phone), { address: o.customer_address, district: o.district });
+          }
+        }
       });
 
       const stats = new Map<
@@ -136,15 +167,21 @@ export default function Leads() {
       if (isOwner) {
         const missing = Array.from(stats.entries())
           .filter(([phone]) => !leadMap.has(phone))
-          .map(([phone, s]) => ({
-            user_id: effectiveUserId,
-            phone_number: phone,
-            customer_name: s.name || null,
-          }));
+          .map(([phone, s]) => {
+            const orderLoc = orderLocationMap.get(phone);
+            return {
+              user_id: effectiveUserId,
+              phone_number: phone,
+              customer_name: s.name || null,
+              status: "new_inquiry",
+              location: orderLoc?.address || null,
+              district: orderLoc?.district || null,
+            };
+          });
         if (missing.length > 0) {
           const { data: inserted } = await (supabase.from("leads" as any) as any)
             .upsert(missing, { onConflict: "user_id,phone_number" })
-            .select("id, phone_number, customer_name, assigned_to, status");
+            .select("id, phone_number, customer_name, assigned_to, status, location, district, package_interest, quantity, purchase_timeline, payment_preference");
           ((inserted as any[]) || []).forEach((l) => leadMap.set(l.phone_number, l));
         }
       }
@@ -156,12 +193,19 @@ export default function Leads() {
       const built: LeadRow[] = phones.map((phone) => {
         const s = stats.get(phone);
         const l = leadMap.get(phone);
+        const orderLoc = orderLocationMap.get(phone);
         return {
           id: l?.id ?? null,
           phone_number: phone,
           customer_name: l?.customer_name || s?.name || "Unknown",
           assigned_to: l?.assigned_to ?? null,
-          status: l?.status || "new",
+          status: normalizeLeadStatus(l?.status),
+          location: l?.location || orderLoc?.address || null,
+          district: l?.district || orderLoc?.district || null,
+          package_interest: l?.package_interest || null,
+          quantity: l?.quantity || 1,
+          purchase_timeline: l?.purchase_timeline || null,
+          payment_preference: l?.payment_preference || null,
           inbound_count: s?.inbound || 0,
           has_order: orderPhones.has(phone),
           last_time: s?.last || null,
@@ -246,7 +290,7 @@ export default function Leads() {
     toast({ title: checked ? "Auto-assign enabled" : "Auto-assign disabled" });
   };
 
-  // Notify the staff member on WhatsApp that a customer was assigned to them
+  // Notify staff member on WhatsApp when a customer is assigned to them
   const notifyStaffAssignment = async (staffUserId: string, row: LeadRow) => {
     try {
       const member = staff.find((s) => s.staff_user_id === staffUserId);
@@ -261,7 +305,9 @@ export default function Leads() {
         .maybeSingle();
 
       const displayPhone = String(row.phone_number || "").split("@")[0];
-      const message = `👤 NEW CUSTOMER ASSIGNED\n\nName: ${row.customer_name || "Unknown"}\nContact: ${displayPhone}\n\nPlease follow up with this customer.`;
+      const loc = row.location || row.district || "Pending capture";
+      const pkg = row.package_interest ? `\nInterested In: ${row.package_interest}` : "";
+      const message = `👤 NEW LEAD ASSIGNED (Ibbagamuwa Fishing Centre)\n\nName: ${row.customer_name || "Unknown"}\nContact: ${displayPhone}\nLocation: ${loc}${pkg}\n\nPlease follow up with this customer.`;
 
       await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-whatsapp_fishing_V2`, {
         method: "POST",
@@ -307,7 +353,22 @@ export default function Leads() {
     return s?.staff_name || s?.staff_email || "Staff";
   };
 
-  const isQualified = (r: LeadRow) => r.inbound_count >= 6 || r.has_order;
+  // Qualified according to PRD criteria: location captured, status marked, or order placed
+  const isQualified = (r: LeadRow) =>
+    r.status === "qualified_lead" ||
+    Boolean(r.location) ||
+    r.status === "cod_confirmed" ||
+    r.status === "bank_transfer_pending" ||
+    r.has_order;
+
+  // Available unique districts for filtering
+  const availableDistricts = useMemo(() => {
+    const set = new Set<string>();
+    rows.forEach((r) => {
+      if (r.district && r.district.trim()) set.add(r.district.trim());
+    });
+    return Array.from(set).sort();
+  }, [rows]);
 
   const visibleRows = useMemo(() => {
     let list = rows;
@@ -317,7 +378,10 @@ export default function Leads() {
       list = list.filter(
         (r) =>
           r.phone_number.toLowerCase().includes(q) ||
-          r.customer_name.toLowerCase().includes(q)
+          r.customer_name.toLowerCase().includes(q) ||
+          (r.location && r.location.toLowerCase().includes(q)) ||
+          (r.district && r.district.toLowerCase().includes(q)) ||
+          (r.package_interest && r.package_interest.toLowerCase().includes(q))
       );
     }
     if (isOwner) {
@@ -327,10 +391,11 @@ export default function Leads() {
         );
       }
       if (filterStatus !== ALL) list = list.filter((r) => r.status === filterStatus);
+      if (filterDistrict !== ALL) list = list.filter((r) => r.district === filterDistrict);
       if (qualifiedOnly) list = list.filter(isQualified);
     }
     return list;
-  }, [rows, isStaff, user, search, isOwner, filterStaff, filterStatus, qualifiedOnly]);
+  }, [rows, isStaff, user, search, isOwner, filterStaff, filterStatus, filterDistrict, qualifiedOnly]);
 
   if (planLoading) {
     return (
@@ -349,10 +414,9 @@ export default function Leads() {
               <div className="mx-auto h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
                 <Lock className="h-6 w-6 text-muted-foreground" />
               </div>
-              <CardTitle>Leads is a Growth plan feature</CardTitle>
+              <CardTitle>Leads is an Enterprise feature</CardTitle>
               <CardDescription>
-                Upgrade to the Growth plan to track customers, assign leads to your staff and
-                follow up on qualified buyers.
+                Track customer inquiries, capture delivery locations, assign leads to staff, and qualify fishing gear buyers.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
@@ -369,11 +433,11 @@ export default function Leads() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Leads</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Leads & Location Tracking</h1>
             <p className="text-muted-foreground text-sm">
               {isStaff
-                ? "Leads assigned to you"
-                : "Customers who have chatted with your WhatsApp bot"}
+                ? "Qualified fishing leads assigned to you"
+                : "Identify and filter lead customers with their delivery location (Ibbagamuwa Fishing Centre)"}
             </p>
           </div>
           {isOwner && (
@@ -396,7 +460,7 @@ export default function Leads() {
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search name or number"
+              placeholder="Search name, phone, location, or package..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -405,7 +469,7 @@ export default function Leads() {
           {isOwner && (
             <>
               <Select value={filterStaff} onValueChange={setFilterStaff}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="All staff" />
                 </SelectTrigger>
                 <SelectContent>
@@ -418,12 +482,13 @@ export default function Leads() {
                   ))}
                 </SelectContent>
               </Select>
+
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="All statuses" />
+                <SelectTrigger className="w-[190px]">
+                  <SelectValue placeholder="All stages" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL}>All statuses</SelectItem>
+                  <SelectItem value={ALL}>All stages</SelectItem>
                   {LEAD_STATUSES.map((s) => (
                     <SelectItem key={s.value} value={s.value}>
                       {s.label}
@@ -431,12 +496,29 @@ export default function Leads() {
                   ))}
                 </SelectContent>
               </Select>
+
+              {availableDistricts.length > 0 && (
+                <Select value={filterDistrict} onValueChange={setFilterDistrict}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="All districts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>All districts</SelectItem>
+                    {availableDistricts.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
               <Button
                 variant={qualifiedOnly ? "default" : "outline"}
                 onClick={() => setQualifiedOnly((v) => !v)}
               >
                 <Sparkles className="h-4 w-4 mr-2" />
-                Qualified only
+                Qualified with Location
               </Button>
             </>
           )}
@@ -453,7 +535,7 @@ export default function Leads() {
             {loading ? (
               <p className="text-muted-foreground">Loading...</p>
             ) : visibleRows.length === 0 ? (
-              <p className="text-muted-foreground">No leads to show yet.</p>
+              <p className="text-muted-foreground">No leads found.</p>
             ) : (
               <div className="space-y-3">
                 {visibleRows.map((row) => {
@@ -462,17 +544,17 @@ export default function Leads() {
                     <div
                       key={row.phone_number}
                       className={cn(
-                        "flex flex-col lg:flex-row lg:items-center gap-3 p-3 rounded-lg border",
-                        qualified && "border-primary/50 bg-primary/5"
+                        "flex flex-col lg:flex-row lg:items-center gap-3 p-4 rounded-lg border transition-colors",
+                        qualified && "border-emerald-500/40 bg-emerald-500/5"
                       )}
                     >
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium truncate">{row.customer_name}</p>
+                          <p className="font-semibold truncate text-base">{row.customer_name}</p>
                           {qualified && (
-                            <Badge className="text-[10px]">
+                            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium">
                               <Sparkles className="h-3 w-3 mr-1" />
-                              Qualified
+                              Qualified Lead
                             </Badge>
                           )}
                           {row.has_order && (
@@ -481,13 +563,63 @@ export default function Leads() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {row.phone_number} · {row.inbound_count} message
-                          {row.inbound_count === 1 ? "" : "s"}
-                        </p>
+
+                        {/* Customer Location prominently displayed (Main PRD Objective) */}
+                        <div className="flex items-center gap-1.5 text-sm font-medium text-foreground flex-wrap">
+                          <MapPin className="h-4 w-4 shrink-0 text-rose-500" />
+                          {row.location || row.district ? (
+                            <span className="text-rose-700 dark:text-rose-400 font-semibold">
+                              {row.location ? row.location : `District: ${row.district}`}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs italic">
+                              Location pending capture
+                            </span>
+                          )}
+                          {row.district && row.location && !row.location.toLowerCase().includes(row.district.toLowerCase()) && (
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+                              {row.district}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Package interest & timeline details */}
+                        {row.package_interest && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Package className="h-3.5 w-3.5 shrink-0 text-sky-500" />
+                            <span>
+                              Package: <strong className="text-foreground">{row.package_interest}</strong>
+                              {row.quantity > 1 ? ` (Qty: ${row.quantity})` : ""}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap pt-0.5">
+                          <span>{row.phone_number}</span>
+                          <span>·</span>
+                          <span>{row.inbound_count} message{row.inbound_count === 1 ? "" : "s"}</span>
+                          {row.purchase_timeline && (
+                            <>
+                              <span>·</span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {row.purchase_timeline}
+                              </span>
+                            </>
+                          )}
+                          {row.payment_preference && (
+                            <>
+                              <span>·</span>
+                              <span className="flex items-center gap-1">
+                                <CreditCard className="h-3 w-3" />
+                                {row.payment_preference === "cod" ? "Cash on Delivery" : "Bank Transfer"}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0">
                         {isOwner ? (
                           <Select
                             value={row.assigned_to || UNASSIGNED}
@@ -495,7 +627,7 @@ export default function Leads() {
                               updateLead(row, { assigned_to: v === UNASSIGNED ? null : v })
                             }
                           >
-                            <SelectTrigger className="w-[170px]">
+                            <SelectTrigger className="w-[160px]">
                               <SelectValue placeholder="Assign to" />
                             </SelectTrigger>
                             <SelectContent>
@@ -515,7 +647,7 @@ export default function Leads() {
                           value={row.status}
                           onValueChange={(v) => updateLead(row, { status: v })}
                         >
-                          <SelectTrigger className="w-[140px]">
+                          <SelectTrigger className="w-[170px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>

@@ -235,9 +235,17 @@ export type Database = {
         Row: {
           assigned_to: string | null
           created_at: string
+          custom_fields: Json | null
           customer_name: string | null
+          district: string | null
           id: string
+          location: string | null
+          package_interest: string | null
+          payment_preference: string | null
           phone_number: string
+          purchase_timeline: string | null
+          qualification_notes: string | null
+          quantity: number | null
           status: string
           updated_at: string
           user_id: string
@@ -245,9 +253,17 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           created_at?: string
+          custom_fields?: Json | null
           customer_name?: string | null
+          district?: string | null
           id?: string
+          location?: string | null
+          package_interest?: string | null
+          payment_preference?: string | null
           phone_number: string
+          purchase_timeline?: string | null
+          qualification_notes?: string | null
+          quantity?: number | null
           status?: string
           updated_at?: string
           user_id: string
@@ -255,9 +271,17 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           created_at?: string
+          custom_fields?: Json | null
           customer_name?: string | null
+          district?: string | null
           id?: string
+          location?: string | null
+          package_interest?: string | null
+          payment_preference?: string | null
           phone_number?: string
+          purchase_timeline?: string | null
+          qualification_notes?: string | null
+          quantity?: number | null
           status?: string
           updated_at?: string
           user_id?: string
