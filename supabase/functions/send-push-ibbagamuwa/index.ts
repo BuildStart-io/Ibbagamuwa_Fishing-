@@ -94,7 +94,7 @@ serve(async (req) => {
     }
 
     // Get all device tokens for this user
-    const dbSchema = (Deno.env.get("DB_SCHEMA") || "fishing_v2").toLowerCase();
+    const dbSchema = ("ibbagamuwa_customization").toLowerCase();
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,

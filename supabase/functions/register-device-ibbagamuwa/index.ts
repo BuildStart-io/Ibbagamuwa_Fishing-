@@ -22,7 +22,7 @@ serve(async (req) => {
       );
     }
 
-    const dbSchema = (Deno.env.get("DB_SCHEMA") || "fishing_v2").toLowerCase();
+    const dbSchema = ("ibbagamuwa_customization").toLowerCase();
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,

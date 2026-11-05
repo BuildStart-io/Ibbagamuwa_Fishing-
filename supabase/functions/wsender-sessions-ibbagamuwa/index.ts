@@ -118,7 +118,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const dbSchema = (Deno.env.get("DB_SCHEMA") || "fishing_v2").toLowerCase();
+    const dbSchema = "ibbagamuwa_customization";
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       db: { schema: dbSchema },
     });
@@ -131,6 +131,7 @@ serve(async (req) => {
     }
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
+      db: { schema: dbSchema },
     });
     const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
     if (claimsError || !claimsData?.claims?.sub) {
@@ -143,7 +144,11 @@ serve(async (req) => {
 
     // WAHA session name locked to the user — slug-safe, deterministic, fits within ~25 chars.
     const sessionName = `u_${userId.replace(/-/g, "").substring(0, 20)}`;
-    const webhookUrl = Deno.env.get("WEBHOOK_URL_OVERRIDE") || `${supabaseUrl}/functions/v1/webhook-wsender_fishing_V2`;
+    let override = Deno.env.get("WEBHOOK_URL_OVERRIDE");
+    if (override && !override.includes("-ibbagamuwa")) {
+      override = override.replace("webhook-wsender", "webhook-wsender-ibbagamuwa");
+    }
+    const webhookUrl = override || `${supabaseUrl}/functions/v1/webhook-wsender-ibbagamuwa`;
 
     // Helper: store/update mapping in user_wsender_sessions
     const upsertMapping = async (displayName?: string) => {

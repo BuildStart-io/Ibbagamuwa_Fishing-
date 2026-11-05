@@ -11,7 +11,7 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   );
 }
 
-const DB_SCHEMA = ((import.meta.env.VITE_DB_SCHEMA as string) || "fishing_V2").toLowerCase();
+const DB_SCHEMA = ((import.meta.env.VITE_DB_SCHEMA as string) || "ibbagamuwa_customization").toLowerCase();
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   db: {

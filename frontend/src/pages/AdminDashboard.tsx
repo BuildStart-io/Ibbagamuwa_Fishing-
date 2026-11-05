@@ -35,7 +35,7 @@ export default function AdminDashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const res = await supabase.functions.invoke("admin-manage-users_fishing_V2", {
+      const res = await supabase.functions.invoke("admin-manage-users-ibbagamuwa", {
         body: { action: "list_users" },
       });
 

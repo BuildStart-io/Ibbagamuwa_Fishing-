@@ -309,7 +309,7 @@ export default function Leads() {
       const pkg = row.package_interest ? `\nInterested In: ${row.package_interest}` : "";
       const message = `👤 NEW LEAD ASSIGNED (Ibbagamuwa Fishing Centre)\n\nName: ${row.customer_name || "Unknown"}\nContact: ${displayPhone}\nLocation: ${loc}${pkg}\n\nPlease follow up with this customer.`;
 
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-whatsapp_fishing_V2`, {
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-whatsapp-ibbagamuwa`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,

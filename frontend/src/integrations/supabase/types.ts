@@ -12,6 +12,7 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.15"
   }
+  ibbagamuwa_customization: Database["public"]
   fishing_V2: Database["public"]
   fishing_v2: Database["public"]
   fishing: Database["public"]
@@ -694,7 +695,7 @@ export type Database = {
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "fishing_V2">]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "ibbagamuwa_customization">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
