@@ -159,20 +159,44 @@ async function processMessage(
     isVoice = true;
   }
 
-  // Check if this is a media message — if so, store it but do NOT reply
-  const mediaTypes = ["image", "video", "document", "sticker", "vcard", "location"];
-  let isMediaMessage = mediaTypes.includes(messageType) || 
-    (!messageText && messageType !== "text" && !isVoice) ||
-    (body?.data?.messages?.messageBody === undefined && body?.data?.messages?.message?.conversation === undefined && !isVoice && !messageText);
+  const isImage = messageType === "image";
+  const isDocument = messageType === "document";
+  const isImageOrDoc = isImage || isDocument;
+
+  // Media types that should be ignored without triggering AI (stickers, vcards, locations, videos)
+  const ignoredMediaTypes = ["sticker", "vcard", "location", "video"];
+  const isIgnoredMedia = ignoredMediaTypes.includes(messageType) || 
+    (!messageText && messageType !== "text" && !isVoice && !isImageOrDoc) ||
+    (body?.data?.messages?.messageBody === undefined && body?.data?.messages?.message?.conversation === undefined && !isVoice && !isImageOrDoc && !messageText);
+
+  // Extract direct media URL if available
+  const attachedMediaUrl = body?.payload?.media?.url || body?.media?.url || body?.payload?.url || null;
+
+  // Build appropriate display text for storing in conversations
+  let storedMessageText = messageText || "";
+  if (isVoice) {
+    storedMessageText = "🎤 [Voice Note: Transcribing...]";
+  } else if (isImage) {
+    storedMessageText = messageText ? `📸 [Image: ${messageText}]` : "📸 [Image]";
+  } else if (isDocument) {
+    storedMessageText = messageText ? `📄 [Document: ${messageText}]` : "📄 [Document]";
+  }
 
   // 1. Store the incoming message in conversations
   mark("store_inbound_start");
   const { data: inboundMsg, error: insertError } = await supabase.from("conversations").insert({
     phone_number: phoneNumber,
-    message: isVoice ? "🎤 [Voice Note: Transcribing...]" : messageText,
+    message: isVoice ? "🎤 [Voice Note: Transcribing...]" : storedMessageText,
     direction: "inbound",
     message_type: messageType,
-    metadata: { senderName, event: body?.event, raw: body, correlationId: corrId, is_voice: isVoice },
+    metadata: { 
+      senderName, 
+      event: body?.event, 
+      raw: body, 
+      correlationId: corrId, 
+      is_voice: isVoice,
+      ...(attachedMediaUrl ? { mediaUrl: attachedMediaUrl } : {})
+    },
     user_id: userId,
   }).select('id').single();
   mark("store_inbound_end");
@@ -226,10 +250,9 @@ async function processMessage(
     supabase, supabaseUrl, supabaseServiceKey, userId, phoneNumber, senderName, sessionApiKey, corrId
   );
 
-
-  // Skip replying to media messages (images, PDFs, videos, etc.)
-  if (isMediaMessage) {
-    console.log(`[${corrId}] Media message (type: ${messageType}) from ${phoneNumber}, stored but not replying`);
+  // Skip replying to non-actionable media messages (stickers, vcards, etc.)
+  if (isIgnoredMedia) {
+    console.log(`[${corrId}] Ignored media message (type: ${messageType}) from ${phoneNumber}, stored but not replying`);
     return;
   }
 
@@ -294,6 +317,14 @@ async function processMessage(
   const controller = new AbortController();
   const aiTimeout = setTimeout(() => controller.abort(), 55_000); // 55s timeout (edge function limit ~60s)
 
+  // Prepare message text for AI (format image/document if needed)
+  let messageForAi = messageText;
+  if (isImage) {
+    messageForAi = messageText ? `[Customer sent an image with caption: "${messageText}"]` : "[Customer sent an image]";
+  } else if (isDocument) {
+    messageForAi = messageText ? `[Customer sent a document with caption: "${messageText}"]` : "[Customer sent a document]";
+  }
+
   let aiResponse: Response;
   try {
     aiResponse = await fetch(`${supabaseUrl}/functions/v1/ai-chat_fishing_V2`, {
@@ -303,7 +334,7 @@ async function processMessage(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        message: messageText,
+        message: messageForAi,
         phoneNumber,
         senderName,
         conversationHistory: conversationHistory?.reverse() || [],
