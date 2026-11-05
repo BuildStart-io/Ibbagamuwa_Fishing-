@@ -171,7 +171,7 @@ serve(async (req) => {
     }
 
     // Build FAQ context with IDs so AI can report which ones it used
-    const faqContext = faqs.map(f => 
+    const faqContext = faqs.map(f =>
       `[FAQ_ID:${f.id}] Q: ${f.question}\nA: ${f.answer}${f.products?.name ? ` (Related to: ${f.products.name})` : ""}`
     ).join("\n\n");
 
@@ -182,10 +182,10 @@ serve(async (req) => {
       .map(msg => `${msg.direction === "inbound" ? "Customer" : "Assistant"}: ${msg.message}`)
       .join("\n");
 
-const systemPrompt = `You are an intelligent WhatsApp chatbot assistant for Ibbagamuwa Fishing Centre. Guide customers through this 10-step sales and qualification flow:
+    const systemPrompt = `You are an intelligent WhatsApp chatbot assistant for Ibbagamuwa Fishing Centre. Guide customers through this 10-step sales and qualification flow:
 
 CHATBOT FLOW (10 STEPS):
-- Step 1 (Welcome & Language Detection): Detect Sinhala, English, or Tamil from the initial text or voice message, send the Ibbagamuwa Fishing Centre welcome greeting, and continue the conversation in that chosen language.
+- Step 1 (Welcome & Language Detection): Detect Sinhala, English, or Tamil from the initial text or voice message, send the Ibbagamuwa Fishing Centre welcome greeting, and continue the conversation in that chosen language. Do not witch language mid conversation unless the customer ask for a switch
 - Step 2 (Package Introduction): Introduce the available fishing gear and package tiers (such as Starter, Intermediate, or Pro kits), explaining exactly what items are included in each.
 - Step 3 (Physical Details): Share client-approved photographs, extended/collapsed height measurements, and mobility features like multi-piece foldable designs or travel bags.
 - Step 4 (Pricing Disclosure): Provide the exact selling prices for individual tools and highlight any applicable bundle savings for combo packages.
@@ -224,20 +224,20 @@ ${freeDeliveryThreshold > 0 ? `   - FREE DELIVERY THRESHOLD: If the order subtot
 - Sub-variants marked as REQUIRED must be selected by the customer before confirming an order. Always ask for required sub-variants if the customer hasn't specified them.
 - For payment, provide ALL configured payment account details to the customer. List every account with emoji separators:
 ${(() => {
-  const accounts = paymentInfo.accounts;
-  if (accounts && Array.isArray(accounts) && accounts.length > 0) {
-    return accounts.map((a: any, i: number) => {
-      const type = a.account_type || "bank";
-      const label = a.account_label || a.bank_name || "Not configured";
-      const number = a.account_number || "Not configured";
-      const name = a.account_name || "Not configured";
-      if (type === "crypto") return `  ${i + 1}. Crypto/Wallet: ${label}, Address/ID: ${number}, Name: ${name}`;
-      if (type === "digital") return `  ${i + 1}. Digital Wallet: ${label}, Account: ${number}, Name: ${name}`;
-      return `  ${i + 1}. Bank: ${label}, Account: ${number}, Name: ${name}`;
-    }).join("\n");
-  }
-  return `  Bank: ${paymentInfo.bank_name || "Not configured"}, Account: ${paymentInfo.account_number || "Not configured"}, Name: ${paymentInfo.account_name || "Not configured"}`;
-})()}
+        const accounts = paymentInfo.accounts;
+        if (accounts && Array.isArray(accounts) && accounts.length > 0) {
+          return accounts.map((a: any, i: number) => {
+            const type = a.account_type || "bank";
+            const label = a.account_label || a.bank_name || "Not configured";
+            const number = a.account_number || "Not configured";
+            const name = a.account_name || "Not configured";
+            if (type === "crypto") return `  ${i + 1}. Crypto/Wallet: ${label}, Address/ID: ${number}, Name: ${name}`;
+            if (type === "digital") return `  ${i + 1}. Digital Wallet: ${label}, Account: ${number}, Name: ${name}`;
+            return `  ${i + 1}. Bank: ${label}, Account: ${number}, Name: ${name}`;
+          }).join("\n");
+        }
+        return `  Bank: ${paymentInfo.bank_name || "Not configured"}, Account: ${paymentInfo.account_number || "Not configured"}, Name: ${paymentInfo.account_name || "Not configured"}`;
+      })()}
 - STRICT DATA BOUNDARY: You must ONLY use the product catalog, FAQs, and payment information provided below. Do NOT make up products, prices, features, or answers that are not explicitly listed. If a customer asks about something not covered, politely say you don't have that information and suggest they contact the business directly.
 
 PRODUCT IMAGES:
@@ -277,10 +277,10 @@ IMAGE AND DOCUMENT (PAYMENT SLIP) RULES:
 - When a customer sends an image or document (indicated by [Customer sent an image...] or [Customer sent a document...]):
   1. Check the previous conversation history carefully:
      - Did you (the assistant) previously ask the customer for a payment slip, bank transfer slip, receipt, or share bank account details for payment?
-     - IF YES: This is a bank transfer payment slip! Acknowledge receipt warmly and politely in the customer's language. Inform them that the bank slip has been received and our team will verify it shortly before dispatching the order (e.g. in Sinhala: "ස්තූතියි! ඔබගේ ගෙවීම් රිසිට්පත (Bank Slip) අපට ලැබුණා. අපගේ කණ්ඩායම එය තහවුරු කර ඉක්මනින්ම ඔබගේ ඇණවුම එවීමට කටයුතු කරනු ඇත! 🎣🙏", or in English: "Thank you! We received your bank payment slip. Our team will verify it shortly and prepare your order for dispatch! 🎣🙏", or in Tamil).
+     - IF YES: This is a bank transfer payment slip! Acknowledge receipt warmly and politely in the customer's language. Inform them that the bank slip has been received and our team will verify it shortly before dispatching the order in the same language used in the converstion.
        Append <LEAD_JSON>{"status":"bank_transfer_pending"}</LEAD_JSON> at the very end of your response.
      - IF NO (you did not ask for a payment slip or bank receipt earlier in the chat):
-       Politely inform the customer: "I cannot read or view images. Please type your message or ask your question in text or voice note." (e.g. in Sinhala: "මට පින්තූර (images) හෝ documents කියවීමට නොහැක. කරුණාකර ඔබගේ පණිවිඩය text හෝ voice note මගින් එවන්න.", or in English: "I cannot read or view images directly. Please type your message or ask your question in text or voice note.", or in Tamil).
+       Politely inform the customer: "I cannot read or view images. Please type your message or ask your question in text or voice note." in the language the conversation is using.
 
 CRITICAL SECURITY RULE:
 - NEVER show raw JSON, code, data structures, or technical markup to the customer under ANY circumstances.
@@ -383,7 +383,7 @@ CRITICAL SECURITY RULE:
     if (usedFaqsMatch && trackedFaqIds.length > 0) {
       const usedIds = usedFaqIds;
       const trackedUsedIds = usedIds.filter((id: string) => trackedFaqIds.includes(id));
-      
+
       if (trackedUsedIds.length > 0) {
         console.log(`Tracked FAQs used: ${trackedUsedIds.join(", ")} for phone ${phoneNumber}`);
         const usageLogs = trackedUsedIds.map((faqId: string) => ({
