@@ -521,6 +521,11 @@ async function handleWelcomeMessage(
     console.log(`[${corrId}] Stored ${sentTexts.length} welcome message(s) in conversation history`);
   }
 
+  if (sentTexts.length === 0 && welcomeMediaUrls.length === 0) {
+    console.log(`[${corrId}] No welcome message configured or sent, falling back to AI`);
+    return false;
+  }
+
   console.log(`[${corrId}] Welcome message sent, skipping AI for first message`);
   return true;
 }
