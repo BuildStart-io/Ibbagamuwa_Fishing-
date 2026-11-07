@@ -127,7 +127,7 @@ serve(async (req) => {
       if (p.product_type === "physical" && p.delivery_price && p.delivery_price > 0) {
         line += ` | Delivery fee: LKR ${p.delivery_price}`;
       }
-      if (p.description) line += ` - ${p.description}`;
+      if (p.description) line += ` - ${p.description.replace(/\s+/g, " ").trim()}`;
       if (p.images && Array.isArray(p.images) && p.images.length > 0) {
         line += ` | Images: ${p.images.join(", ")}`;
       }
@@ -244,14 +244,19 @@ FISHING PRODUCT CATALOG & AVAILABILITY RULES:
 - The store sells BOTH complete combo packages/kits AND individual accessories/tools (such as separate rods, reels, lines, lures, frogs, cables, and floats).
 - ALWAYS check the PRODUCT CATALOG below for items requested by the customer.
 - IMPORTANT MULTILINGUAL SYNONYM & PRODUCT MAPPING:
-  * Floats / Boppers = ඉපියෝ / බෝයාව / Floats / Long float
+  * Floats / Boppers / Float / Individual float = ඉපියෝ / බෝයාව / Floats / Long float (Base price LKR 200)
   * Frog lures = මැඩි ඇම / frog lure / popper / frog
   * Artificial baits / Lures = ඇම / ලුවර් / Lure / Poppor lure
   * Fishing line / cables = නූල් / කේබල් / FISHING CABLE / Wire trace
   * Telescopic rods = අකුලන පිති / ටෙලස්කෝපික් රොඩ් / Telescope rod
   * Reel = රීල් එක / Reel
   * Kits / Sets = කට්ටල / පැකේජ / Kits / Full Set
-- DYNAMIC AVAILABILITY: If an item is listed in the PRODUCT CATALOG below with a price, it IS currently available for individual purchase! Even if earlier in the conversation history it was mentioned that an accessory was unavailable or only bundled in a kit, you MUST recognize that it is now in stock individually, quote its price from the catalog, and proceed to sell it to the customer.
+- MANDATORY EXACT NUMERIC PRICING:
+  * Whenever a customer asks about ANY product or accessory (like floats, lures, rods, reels, cables, kits), you MUST ALWAYS state the EXACT NUMERIC selling price in LKR from the PRODUCT CATALOG below (e.g. '💰 Price: LKR 200' or 'රු. 200').
+  * NEVER write vague non-numeric placeholders like 'Included in our accessory range', 'available upon request', 'price depends on selection', or omit the price. Always provide the actual price immediately!
+- OVERRIDE HISTORICAL CONVERSATION CLAIMS:
+  * The conversation history may contain past turns where you previously told the customer that an item (such as floats, cables, or lures) was unavailable or only came inside a package kit, or where you did not give the price. DO NOT REPEAT THOSE PAST CLAIMS!
+  * If the item is listed in the current PRODUCT CATALOG below, you MUST treat it as NOW IN STOCK individually, state its exact LKR price from the catalog, and offer it for individual purchase immediately!
 
 PRODUCT IMAGES:
 - When a customer asks about a specific product that has images, include ALL the image URLs in separate <IMAGE_URL>url</IMAGE_URL> tags at the END of your response. Include all images for the product to give them a complete view.
