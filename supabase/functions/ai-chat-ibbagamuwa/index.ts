@@ -33,8 +33,9 @@ serve(async (req) => {
     });
 
     const { message, phoneNumber, conversationHistory, userId, sessionApiKey, senderName } = await req.json();
+    const trimmedMessage = (message || "").trim();
 
-    console.log(`Processing AI chat for ${phoneNumber} (user: ${userId}): ${message}`);
+    console.log(`Processing AI chat for ${phoneNumber} (user: ${userId}): ${trimmedMessage}`);
 
     // Fetch products, FAQs, settings, profile, and platform limits
     const [productsRes, faqsRes, settingsRes, profileRes, platformLimitsRes] = await Promise.all([
@@ -202,7 +203,22 @@ serve(async (req) => {
           .join("\n")
       : "";
 
-    const systemPrompt = `You are an intelligent WhatsApp chatbot assistant for Ibbagamuwa Fishing Centre. Guide customers through this 10-step sales and qualification flow:
+    // Pre-match customer inquiry against active products in the catalog
+    const userMsgClean = trimmedMessage.toLowerCase();
+    const matchedProducts = products.filter(p => {
+      const pNameLower = p.name.toLowerCase().trim();
+      return pNameLower.length >= 3 && userMsgClean.includes(pNameLower);
+    });
+
+    const productNotice = matchedProducts.length > 0 ? `
+CRITICAL INVENTORY NOTICE:
+The customer is specifically asking about the following active catalog product(s):
+${matchedProducts.map(p => `- Product: "${p.name}" | Base Price: LKR ${p.price} | Delivery: LKR ${p.delivery_price || 0} | Description: ${p.description || "In stock"}`).join("\n")}
+This item is 100% ACTIVE and IN STOCK in your catalog. You MUST confirm availability, state its exact LKR price, and offer it for purchase! NEVER say this item is missing or not in the catalog!
+
+` : "";
+
+    const systemPrompt = `${productNotice}You are an intelligent WhatsApp chatbot assistant for Ibbagamuwa Fishing Centre. Guide customers through this 10-step sales and qualification flow:
 
 CHATBOT FLOW (10 STEPS):
 - Step 1 (Welcome & Language Detection): Detect Sinhala, English, or Tamil from the initial text or voice message, send the Ibbagamuwa Fishing Centre welcome greeting, and continue the conversation in that chosen language. Do not switch language mid conversation unless the customer asks for a switch.
@@ -361,7 +377,6 @@ SYSTEM MARKUP & PRIVACY RULES:
     }
 
     // Handle incoming user message
-    const trimmedMessage = (message || "").trim();
     if (!trimmedMessage) {
       messages.push({ role: "user", content: "[Customer sent an image]" });
     } else {
