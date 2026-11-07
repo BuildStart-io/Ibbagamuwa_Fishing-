@@ -122,14 +122,29 @@ serve(async (req) => {
     const deliverySettings = settings.find(s => s.key === "delivery_settings")?.value || {};
     const freeDeliveryThreshold = deliverySettings.free_delivery_threshold || 0;
 
+    // Helper to safely extract image URLs whether postgres array, json array or string
+    const getProductImages = (p: any): string[] => {
+      if (!p || !p.images) return [];
+      if (Array.isArray(p.images)) return p.images.map((u: any) => String(u || "").trim()).filter(Boolean);
+      if (typeof p.images === "string") {
+        return p.images
+          .replace(/^\{|\}$/g, "")
+          .split(",")
+          .map((s: string) => s.trim().replace(/^"|"$/g, ""))
+          .filter(Boolean);
+      }
+      return [];
+    };
+
     const productCatalog = products.map(p => {
       let line = `- ${p.name}: Base price LKR ${p.price} (${p.product_type})`;
       if (p.product_type === "physical" && p.delivery_price && p.delivery_price > 0) {
         line += ` | Delivery fee: LKR ${p.delivery_price}`;
       }
       if (p.description) line += ` - ${p.description.replace(/\s+/g, " ").trim()}`;
-      if (p.images && Array.isArray(p.images) && p.images.length > 0) {
-        line += ` | Images: ${p.images.join(", ")}`;
+      const imgs = getProductImages(p);
+      if (imgs.length > 0) {
+        line += ` | Image URLs: ${imgs.join(", ")}`;
       }
       if (p.video_url) {
         line += ` | Video: ${p.video_url}`;
@@ -164,8 +179,9 @@ serve(async (req) => {
     const productImageMap: Record<string, string> = {};
     const productVideoMap: Record<string, string> = {};
     for (const p of products) {
-      if (p.images && Array.isArray(p.images) && p.images.length > 0) {
-        productImageMap[p.name.toLowerCase()] = p.images[0];
+      const pImages = getProductImages(p);
+      if (pImages.length > 0) {
+        productImageMap[p.name.toLowerCase()] = pImages[0];
       }
       if (p.video_url) {
         productVideoMap[p.name.toLowerCase()] = p.video_url;
@@ -203,7 +219,7 @@ CHATBOT FLOW (10 STEPS):
 IMPORTANT GUIDELINES:
 - Respond in the SAME LANGUAGE the customer uses. Auto-detect their language.
 - STRICT LANGUAGE CONSISTENCY:
-  * When communicating in TAMIL, use 100% pure Tamil. Do NOT mix Sinhala words (like "හි", "ඡායාරූප", "සහ", "රු.") into Tamil sentences!
+  * When communicating in TAMIL, use 100% pure Tamil. Absolutely NEVER mix Sinhala words or Sinhala script (like "වෙත සාදරයෙන් පිළිගනිමු", "හි", "ඡායාරූප", "සහ", "රු.") into Tamil sentences! The response must contain ZERO Sinhala characters.
   * When communicating in SINHALA, use 100% pure Sinhala.
   * When communicating in ENGLISH, use 100% clean English.
   * Keep all subsequent responses (including order summaries, questions, and descriptions) in the customer's chosen language.
@@ -250,20 +266,26 @@ ${(() => {
 - STRICT DATA BOUNDARY: You must ONLY use the product catalog, FAQs, and payment information provided below. Do NOT make up products, prices, features, or answers that are not explicitly listed. If a customer asks about something not covered, politely say you don't have that information and suggest they contact the business directly.
 
 FISHING PRODUCT CATALOG & DYNAMIC PRODUCT RULES:
-- THE LIVE PRODUCT CATALOG BELOW IS THE SINGLE SOURCE OF TRUTH:
-  * The store sells BOTH complete combo packages/kits AND individual standalone tools/accessories.
-  * Every product currently available for sale is listed in the PRODUCT CATALOG below with its exact name, base price in LKR, delivery fee, variations, and description.
-  * NEVER quote prices or products from memory or guess a price range (e.g., NEVER say "LKR 200 upwards" or "LKR 450 upwards" for an item unless that exact price is listed for that specific product in the catalog).
-- DYNAMIC PRODUCT MATCHING FOR ALL PRODUCTS (EXISTING & NEWLY ADDED):
-  * EXACT PRODUCT NAME PRIORITY: If a customer asks about a specific product by name or mentions key words matching an item in the PRODUCT CATALOG (such as "lure set with tackle box", "Soft Bite Lure", "frog lure", "FISHING CABLE", "Long float", "Normal quality telescope rod", etc.), you MUST PRIORITIZE that EXACT catalog product! Directly present that specific product with its catalog name and exact LKR price (e.g. "lure set with tackle box: LKR 1,900"). Do NOT replace it with or divert the customer to larger, unrelated combo kits (like Spin Master or Full Fishing Set) unless the customer explicitly asks for a complete rod & reel combo set!
-  * When a customer asks about ANY product:
-    1. Search the live PRODUCT CATALOG below for the product matching the customer's query.
-    2. Check that product's EXACT Base Price and Variation prices from the catalog.
-    3. Always state the EXACT NUMERIC price in LKR directly from that product's entry (e.g., if catalog lists "Soft Bite Lure: Base price LKR 1900", you MUST quote LKR 1,900 / රු. 1,900 / ரூ. 1,900 — NEVER guess or give a different price).
-    4. If the product has size or height variations (like 6-8ft, 9-12ft, 12-15ft), list the available options and their specific prices.
-    5. NEVER substitute a specific requested item with a cheaper accessory price or vague estimate.
-- STANDALONE ACCESSORIES ARE SOLD INDIVIDUALLY:
-  * If an accessory (like a float, lure, frog, cable, or reel) appears as a separate product in the PRODUCT CATALOG below, it IS in stock and sold individually! State its catalog price and offer it for purchase immediately.
+- UNIVERSAL DYNAMIC CATALOG RULES (MANDATORY):
+  * THE LIVE "PRODUCT CATALOG" BELOW IS THE COMPLETE, DYNAMIC SOURCE OF TRUTH.
+  * The business adds products dynamically to this catalog. The catalog may contain ANY product, item name, code, test entry, or custom item in any language.
+  * NEVER assume a product name is invalid, typo, slang, or test data just because it sounds unfamiliar (e.g. "vikkkyg" or any newly added item).
+  * If a customer asks about, inquires about, or mentions ANY product name that matches or relates to an item in the PRODUCT CATALOG below:
+    1. You MUST immediately recognize it as a valid, in-stock product available for purchase!
+    2. Quote its EXACT numeric Base Price in LKR directly from its entry (e.g., if catalog says "vikkkyg: Base price LKR 677788", you MUST state LKR 677,788 — NEVER change it to any other price! If catalog says "Long float: Base price LKR 200", you MUST quote LKR 200 / රු. 200 / ரூ. 200).
+    3. State its delivery fee and description as listed in the catalog.
+    4. If the product has NO image URLs listed in the catalog (like 'vikkkyg'), DO NOT include any <IMAGE_URL> tags! Never invent fake image URLs.
+    5. NEVER say "I'm not quite sure what you mean by...", NEVER claim the product is unavailable, and NEVER divert the customer away to other items when they asked for an item that is in the catalog!
+- STRICT ZERO-HALLUCINATION PRICING:
+  * NEVER quote prices or products from memory or guess a price range.
+  * OVERRIDE PAST CONVERSATION MESSAGES: If a previous message in the conversation history erroneously mentioned a wrong, outdated, or hallucinated price (for example LKR 150 for Long float), YOU MUST IGNORE THAT PAST PRICE and provide the REAL price from the live catalog (LKR 200)! The live PRODUCT CATALOG always overrides past conversation history.
+  * Standalone accessories (floats, lures, cables, reels) are sold individually at their exact catalog price.
+- STANDALONE ACCESSORIES & EXACT ITEM PRIORITY (MANDATORY):
+  * When a customer asks about a specific item like a float ("Float", "Float evalavu", "Long float", "ඉපියා", "மிதவை"), lure ("Soft Bite Lure", "frog lure"), cable ("FISHING CABLE"), or reel:
+    1. You MUST IMMEDIATELY offer the standalone catalog item (e.g. "Long float: Base price LKR 200")!
+    2. Directly quote its exact price: LKR 200 / රු. 200 / ரூ. 200.
+    3. NEVER tell the customer that it is only available inside a combo kit or as a free bonus!
+    4. NEVER tell the customer that they have to visit the physical store to buy standalone floats or accessories! Standalone floats and accessories ARE sold online with All-Island Delivery (COD and Bank Transfer)!
 - MULTILINGUAL VOCABULARY & SYNONYM RESOLUTION:
   * Customers may refer to products in Sinhala, Tamil, or English using everyday colloquial terms:
     - Artificial Baits / Lures = ඇම / ලුවර් / தூண்டில் இரை / பொய் மீன் ➔ Match to lure products in catalog
@@ -278,7 +300,8 @@ FISHING PRODUCT CATALOG & DYNAMIC PRODUCT RULES:
   * Ignore any past assistant messages in the conversation history that claimed an item was unavailable or only came inside a kit. If the item is in the live PRODUCT CATALOG below, it is active and available now!
 
 PRODUCT IMAGES:
-- When a customer asks about a specific product that has images, include ALL the image URLs in separate <IMAGE_URL>url</IMAGE_URL> tags at the END of your response. Include all images for the product to give them a complete view.
+- When a customer asks about a specific product that has images, or when you introduce/present a product, include ALL its image URLs in separate <IMAGE_URL>url</IMAGE_URL> tags at the END of your response.
+- Customers do NOT have to ask for photos explicitly. Always attach the product images so customers can see what they are buying!
 - Only use image URLs from the product catalog below. Never make up image URLs.
 
 PRODUCT VIDEOS:
@@ -464,10 +487,49 @@ SYSTEM MARKUP & PRIVACY RULES:
       }
     }
 
+    // Helper to validate genuine customer name (rejects field labels and placeholders)
+    function isValidCustomerName(name: string | null | undefined): boolean {
+      if (!name) return false;
+      const trimmed = name.replace(/[✅🔹📦👤📞📍💰💵🚚\-]/g, "").trim();
+      if (trimmed.length < 2 || trimmed.length > 60) return false;
+      if (/^(?:දුරකථන|නම|ලිපිනය|name|phone|address|contact|customer|\.\.\.|---)/i.test(trimmed)) return false;
+      if (trimmed.endsWith(":") || trimmed.includes(":") || trimmed === "...") return false;
+      return true;
+    }
+
+    // Helper to validate genuine address (rejects payment method descriptions and placeholders)
+    function isValidAddress(addr: string | null | undefined): boolean {
+      if (!addr) return false;
+      const trimmed = addr.replace(/[✅🔹📦👤📞📍💰💵🚚\-]/g, "").trim();
+      if (trimmed.length < 4 || trimmed.length > 200) return false;
+      if (/^(?:ගෙවීමේ|මුදල්|ලිපිනය|address|payment|cod|bank|\.\.\.)/i.test(trimmed)) return false;
+      if (trimmed.endsWith(":") || trimmed.includes("ක්‍රමය") || trimmed === "...") return false;
+      return true;
+    }
+
     // Helper to execute order creation, lead sync, and owner notification
     async function executeSaveOrder(orderData: any): Promise<boolean> {
       try {
         console.log("Saving order to database:", JSON.stringify(orderData));
+
+        // Strict validation: Reject bogus or empty orders
+        const rawName = orderData.customer_name;
+        if (!isValidCustomerName(rawName)) {
+          console.warn("Rejected order with invalid customer name:", rawName);
+          return false;
+        }
+
+        const totalAmount = Number(orderData.total_amount) || 0;
+        if (totalAmount <= 0) {
+          console.warn("Rejected order with total_amount <= 0:", totalAmount);
+          return false;
+        }
+
+        const rawAddr = orderData.customer_address;
+        if (rawAddr && !isValidAddress(rawAddr)) {
+          console.warn("Rejected order with invalid address label:", rawAddr);
+          return false;
+        }
 
         // Deduplication: check if a similar order was created in the last 5 minutes
         const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -605,15 +667,18 @@ SYSTEM MARKUP & PRIVACY RULES:
       }
     }
 
-    // Fallback Order Extraction: if no <ORDER_JSON> was emitted but the AI confirmed an order or COD
+    // Fallback Order Extraction: only if no <ORDER_JSON> was emitted and message is a genuine confirmation (NOT asking for details!)
     if (!orderCreated && !ordersLimitReached) {
-      const isConfirmedInChat =
-        /(ඇණවුම|order).*(ස්ථිර|තහවුරු|සටහන්|confirmed)/i.test(responseText) ||
-        /(Cash on Delivery|COD).*(ස්ථිර|තහවුරු)/i.test(responseText) ||
-        parsedLeadData?.status === "cod_confirmed" ||
-        parsedLeadData?.status === "bank_transfer_pending";
+      const isAskingForDetails =
+        /(?:ලබා දෙන්න|තහවුරු කිරීමට|අවශ්‍ය|තොරතුරු|details needed|please provide|provide the following|விபரங்களை வழங்கவும்|விபரங்கள் தேவை|to process your order|I need a few details)/i.test(responseText);
 
-      if (isConfirmedInChat) {
+      const isActuallyConfirmed =
+        !isAskingForDetails && (
+          /(?:ඇණවුම|order).*(?:සාර්ථකව|තහවුරු කරගන්නා ලදී|සටහන් කරගන්නා ලදී|confirmed successfully|has been confirmed|is confirmed|has been placed|உறுதிப்படுத்தப்பட்டது|பதிவு செய்யப்பட்டுள்ளது)/i.test(responseText) ||
+          /(?:Cash on Delivery|COD).*(?:තහවුරු කරගන්නා ලදී|confirmed successfully|is confirmed)/i.test(responseText)
+        );
+
+      if (isActuallyConfirmed) {
         console.log(`[Order Fallback] Order confirmation detected without <ORDER_JSON> for ${phoneNumber}. Extracting order data.`);
 
         let fallbackName = parsedLeadData?.customer_name;
@@ -652,7 +717,8 @@ SYSTEM MARKUP & PRIVACY RULES:
         if (!fallbackName) {
           const nameMatch = responseText.match(/(?:^|[\s\n])(?:පාරිභෝගික(?:යාගේ)? නම|නම|Customer Name|Name)\s*[:\-]\s*([^\n]+)/iu);
           if (nameMatch) {
-            fallbackName = nameMatch[1].replace(/[✅🔹📦👤📞📍💰💵🚚]/g, "").trim();
+            const cand = nameMatch[1].replace(/[✅🔹📦👤📞📍💰💵🚚]/g, "").trim();
+            if (isValidCustomerName(cand)) fallbackName = cand;
           }
         }
         if (!fallbackName && Array.isArray(conversationHistory)) {
@@ -660,8 +726,11 @@ SYSTEM MARKUP & PRIVACY RULES:
             const histText = conversationHistory[i]?.message || "";
             const histNameMatch = histText.match(/(?:^|[\s\n])(?:Name|නම)\s*[:\-]\s*([^\n]+)/iu);
             if (histNameMatch) {
-              fallbackName = histNameMatch[1].replace(/[✅🔹📦👤📞📍💰💵🚚]/g, "").trim();
-              break;
+              const cand = histNameMatch[1].replace(/[✅🔹📦👤📞📍💰💵🚚]/g, "").trim();
+              if (isValidCustomerName(cand)) {
+                fallbackName = cand;
+                break;
+              }
             }
           }
         }
@@ -670,7 +739,8 @@ SYSTEM MARKUP & PRIVACY RULES:
         if (!fallbackLocation) {
           const addrMatch = responseText.match(/(?:^|[\s\n])(?:ලිපිනය|ස්ථානය|බෙදා හැරීමේ ලිපිනය|Delivery Address|Address)\s*[:\-]\s*([^\n]+)/iu);
           if (addrMatch) {
-            fallbackLocation = addrMatch[1].replace(/[✅🔹📦👤📞📍💰💵🚚]/g, "").trim();
+            const cand = addrMatch[1].replace(/[✅🔹📦👤📞📍💰💵🚚]/g, "").trim();
+            if (isValidAddress(cand)) fallbackLocation = cand;
           }
         }
         if (!fallbackLocation && Array.isArray(conversationHistory)) {
@@ -678,14 +748,17 @@ SYSTEM MARKUP & PRIVACY RULES:
             const histText = conversationHistory[i]?.message || "";
             const histAddrMatch = histText.match(/(?:^|[\s\n])(?:Address|ලිපිනය|ස්ථානය)\s*[:\-]\s*([^\n]+)/iu);
             if (histAddrMatch) {
-              fallbackLocation = histAddrMatch[1].replace(/[✅🔹📦👤📞📍💰💵🚚]/g, "").trim();
-              break;
+              const cand = histAddrMatch[1].replace(/[✅🔹📦👤📞📍💰💵🚚]/g, "").trim();
+              if (isValidAddress(cand)) {
+                fallbackLocation = cand;
+                break;
+              }
             }
           }
         }
 
-        // Only create order if we have at least a customer name and (location or amount > 0)
-        if (fallbackName && (fallbackLocation || totalAmount > 0)) {
+        // Only create order if all fields are genuinely valid and totalAmount > 0
+        if (isValidCustomerName(fallbackName) && isValidAddress(fallbackLocation) && totalAmount > 0 && itemName !== "Fishing Equipment") {
           const fallbackOrderData = {
             customer_name: fallbackName,
             customer_phone: fallbackPhone,
@@ -693,7 +766,7 @@ SYSTEM MARKUP & PRIVACY RULES:
             customer_address: fallbackLocation || null,
             order_items: [{
               name: itemName,
-              price: totalAmount > 0 ? totalAmount : 0,
+              price: totalAmount,
               quantity: 1,
               product_type: "physical",
             }],
@@ -705,7 +778,7 @@ SYSTEM MARKUP & PRIVACY RULES:
           const success = await executeSaveOrder(fallbackOrderData);
           if (success) orderCreated = true;
         } else {
-          console.log("[Order Fallback] Insufficient details to construct order (name:", fallbackName, ", location:", fallbackLocation, ")");
+          console.log("[Order Fallback] Insufficient details to construct order (name:", fallbackName, ", location:", fallbackLocation, ", amount:", totalAmount, ")");
         }
       }
     }
@@ -748,21 +821,49 @@ SYSTEM MARKUP & PRIVACY RULES:
       }
     }
 
-    // Extract image URLs if present
-    const imageUrlMatches = Array.from(responseText.matchAll(/<IMAGE_URL>([\s\S]*?)<\/IMAGE_URL>/g));
-    const imageUrls = imageUrlMatches.map(m => m[1].trim());
+    // Build set of valid image URLs from current user's products
+    const validCatalogImageUrls = new Set<string>();
+    for (const p of products) {
+      for (const img of getProductImages(p)) {
+        validCatalogImageUrls.add(img);
+      }
+    }
 
-    // Intelligent fallback for photo requests if LLM omitted <IMAGE_URL> tags:
-    if (imageUrls.length === 0 && /(?:photo|pic|image|පින්තූර|ඡායාරූප|படம்|போட்டோ)/i.test(trimmedMessage)) {
-      const combinedContext = (responseText + " " + (Array.isArray(conversationHistory) ? conversationHistory.slice(-2).map((m: any) => m.message).join(" ") : "")).toLowerCase();
+    // Extract image URLs if present and STRICTLY validate against catalog (reject hallucinated URLs)
+    const imageUrlMatches = Array.from(responseText.matchAll(/<IMAGE_URL>([\s\S]*?)<\/IMAGE_URL>/g));
+    const imageUrls = imageUrlMatches
+      .map(m => m[1].trim())
+      .filter(url => validCatalogImageUrls.has(url));
+
+    // Intelligent Auto-Image Attachment:
+    // If the LLM omitted <IMAGE_URL> tags, detect the specific catalog product being asked about or discussed
+    if (imageUrls.length === 0) {
+      const userMsgLower = trimmedMessage.toLowerCase().trim();
+      const botMsgLower = responseText.toLowerCase();
+      const commonStopwords = new Set(["fishing", "centre", "center", "gear", "best", "package", "setup", "items", "item", "equipment", "order", "delivery"]);
+
       for (const p of products) {
-        if (p.images && Array.isArray(p.images) && p.images.length > 0) {
-          const pNameLower = p.name.toLowerCase();
-          if (combinedContext.includes(pNameLower) || (pNameLower.length > 5 && combinedContext.includes(pNameLower.slice(0, 10)))) {
-            imageUrls.push(...p.images);
-            console.log(`[Image Fallback] Auto-attached ${p.images.length} images for product "${p.name}"`);
-            break;
-          }
+        const pImages = getProductImages(p);
+        if (pImages.length === 0) continue;
+
+        const pNameLower = p.name.toLowerCase().trim();
+        // 1. Direct full name match in user message or bot message
+        if (pNameLower.length >= 4 && (userMsgLower.includes(pNameLower) || botMsgLower.includes(pNameLower))) {
+          imageUrls.push(...pImages.slice(0, 3));
+          console.log(`[Auto Image] Direct match attached for "${p.name}"`);
+          break;
+        }
+
+        // 2. Specific product keywords in user message
+        const specificWords = pNameLower
+          .split(/[\s\-_,.:+!|()]+/)
+          .filter((w: string) => w.length >= 4 && !commonStopwords.has(w));
+
+        const userMatchesSpecificWord = specificWords.length > 0 && specificWords.some((w: string) => userMsgLower.includes(w));
+        if (userMatchesSpecificWord) {
+          imageUrls.push(...pImages.slice(0, 3));
+          console.log(`[Auto Image] User keyword match attached for "${p.name}"`);
+          break;
         }
       }
     }
