@@ -50,7 +50,97 @@ export async function transcribeAudio(
   const base64Audio = bytesToBase64(audioBuffer);
   const dataUrl = `data:${cleanMime};base64,${base64Audio}`;
 
-  // 1b. Direct Google Gemini API (gemini-2.5-flash natively handles audio via inlineData)
+  let audioFormat = "ogg";
+  if (cleanMime.includes("wav")) audioFormat = "wav";
+  else if (cleanMime.includes("mp3") || cleanMime.includes("mpeg")) audioFormat = "mp3";
+  else if (cleanMime.includes("m4a") || cleanMime.includes("aac")) audioFormat = "m4a";
+
+  const sttPrompt = "You are a verbatim speech-to-text transcriber for WhatsApp voice messages in Sri Lanka. The language could be Sinhala, English, Tamil, or Singlish. Transcribe the spoken audio verbatim in its native language/script (Sinhala script for Sinhala, Tamil script for Tamil, Latin script for English/Singlish). Do NOT translate. Do NOT summarize. Do NOT add preamble, quotes, markdown formatting, or commentary. Output ONLY the exact transcribed words. If the audio has no speech or is unintelligible noise, output [UNINTELLIGIBLE].";
+
+  // 1. Primary STT via OpenRouter (google/gemini-2.5-flash with native audio understanding)
+  if (OPENROUTER_API_KEY) {
+    try {
+      console.log("Transcribing audio using OpenRouter API (google/gemini-2.5-flash)...");
+      
+      // Strategy A: Standard input_audio payload
+      let orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://buildstart.io",
+          "X-Title": "BuildStart WhatsApp Voice"
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: sttPrompt },
+                {
+                  type: "input_audio",
+                  input_audio: {
+                    data: base64Audio,
+                    format: audioFormat
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 500
+        }),
+        signal: AbortSignal.timeout(20_000)
+      });
+
+      // Strategy B: If input_audio is not accepted, fallback to multimodal image_url with data URI
+      if (!orRes.ok) {
+        const errText = await orRes.text();
+        console.warn(`OpenRouter input_audio failed (${orRes.status}): ${errText}, trying image_url dataUrl...`);
+        orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://buildstart.io",
+            "X-Title": "BuildStart WhatsApp Voice"
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: sttPrompt },
+                  { type: "image_url", image_url: { url: dataUrl } }
+                ]
+              }
+            ],
+            max_tokens: 500
+          }),
+          signal: AbortSignal.timeout(20_000)
+        });
+      }
+
+      if (orRes.ok) {
+        const orData = await orRes.json();
+        let transcription = orData?.choices?.[0]?.message?.content?.trim();
+        transcription = transcription?.replace(/^["'`]+|["'`]+$/g, "").trim();
+        if (transcription && transcription !== "[UNINTELLIGIBLE]") {
+          console.log("OpenRouter transcription successful:", transcription);
+          return transcription;
+        } else {
+          console.warn(`OpenRouter returned no intelligible speech: "${transcription}"`);
+        }
+      } else {
+        console.warn(`OpenRouter transcription failed (${orRes.status}): ${await orRes.text()}`);
+      }
+    } catch (err) {
+      console.warn("OpenRouter transcription error:", err);
+    }
+  }
+
+  // 2. Direct Google Gemini API (gemini-2.5-flash natively handles audio via inlineData)
   if (GEMINI_API_KEY) {
     try {
       console.log("Transcribing audio using Google Gemini API (gemini-2.5-flash)...");
@@ -243,56 +333,6 @@ export async function transcribeAudio(
       }
     } catch (whisperErr) {
       console.warn("OpenAI Whisper transcription error:", whisperErr);
-    }
-  }
-
-  // 4. Fallback: OpenRouter with max_tokens set
-  if (OPENROUTER_API_KEY) {
-    try {
-      console.log("Sending to OpenRouter for transcription fallback...");
-      const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          models: ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"],
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Transcribe this audio verbatim in its native language/script (Sinhala, Tamil, English, or Singlish). Do NOT translate or summarize. Output ONLY the transcription. If unintelligible, output [UNINTELLIGIBLE]."
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: dataUrl
-                  }
-                }
-              ]
-            }
-          ],
-          max_tokens: 500
-        }),
-        signal: AbortSignal.timeout(20_000)
-      });
-
-      if (orRes.ok) {
-        const orData = await orRes.json();
-        let transcription = orData?.choices?.[0]?.message?.content?.trim();
-        transcription = transcription?.replace(/^["'`]+|["'`]+$/g, "").trim();
-        if (transcription && transcription !== "[UNINTELLIGIBLE]") {
-          console.log("OpenRouter transcription result:", transcription);
-          return transcription;
-        }
-      } else {
-        console.error(`OpenRouter transcription failed (${orRes.status}): ${await orRes.text()}`);
-      }
-    } catch (err) {
-      console.error("Error transcribing audio via OpenRouter:", err);
     }
   }
 
