@@ -19,8 +19,8 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_REGION: ${MINIO_REGION}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
-      WEBHOOK_URL_OVERRIDE: "https://socket-proper-space-lancaster.trycloudflare.com/functions/v1/webhook-wsender_fishing_V2"
-      DB_SCHEMA: "fishing_v2"
+      WEBHOOK_URL_OVERRIDE: "https://label-leslie-protocols-lance.trycloudflare.com/functions/v1/webhook-wsender-ibbagamuwa"
+      DB_SCHEMA: "ibbagamuwa_customization"
 
   minio:
     container_name: supabase-minio
