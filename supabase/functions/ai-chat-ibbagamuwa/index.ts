@@ -136,22 +136,24 @@ serve(async (req) => {
       }
       if (p.variations && Array.isArray(p.variations) && p.variations.length > 0) {
         const varLines = p.variations.map((v: any) => {
-          const opts = v.options?.map((o: any) => {
-            if (typeof o !== "object") return o;
+          if (!v || !Array.isArray(v.options)) return `${v?.name || ""}`;
+          const opts = v.options.map((o: any) => {
+            if (!o || typeof o !== "object") return String(o || "");
             let optStr = `${o.label}: LKR ${o.price}`;
             if (o.subVariants && Array.isArray(o.subVariants) && o.subVariants.length > 0) {
               const subLines = o.subVariants.map((sv: any) => {
+                if (!sv) return "";
                 const reqTag = sv.required ? " (REQUIRED)" : " (optional)";
-                const subOpts = sv.options?.map((so: any) =>
-                  typeof so === "object" ? `${so.label}: +LKR ${so.price}` : so
-                ).join(", ");
-                return `[${sv.name}${reqTag}: ${subOpts}]`;
+                const subOpts = Array.isArray(sv.options) ? sv.options.map((so: any) =>
+                  so && typeof so === "object" ? `${so.label}: +LKR ${so.price}` : String(so || "")
+                ).join(", ") : "";
+                return `[${sv.name || ""}${reqTag}: ${subOpts}]`;
               }).join(" ");
               optStr += ` ${subLines}`;
             }
             return optStr;
           }).join(", ");
-          return `${v.name}: ${opts}`;
+          return `${v.name || ""}: ${opts}`;
         }).join("; ");
         line += ` | Variations: ${varLines}`;
       }
@@ -178,15 +180,17 @@ serve(async (req) => {
     // Get list of tracked FAQ IDs
     const trackedFaqIds = faqs.filter(f => f.is_tracked).map(f => f.id);
 
-    const conversationContext = (conversationHistory as ConversationMessage[])
-      .map(msg => `${msg.direction === "inbound" ? "Customer" : "Assistant"}: ${msg.message}`)
-      .join("\n");
+    const conversationContext = Array.isArray(conversationHistory)
+      ? (conversationHistory as ConversationMessage[])
+          .map(msg => `${msg.direction === "inbound" ? "Customer" : "Assistant"}: ${msg.message}`)
+          .join("\n")
+      : "";
 
     const systemPrompt = `You are an intelligent WhatsApp chatbot assistant for Ibbagamuwa Fishing Centre. Guide customers through this 10-step sales and qualification flow:
 
 CHATBOT FLOW (10 STEPS):
-- Step 1 (Welcome & Language Detection): Detect Sinhala, English, or Tamil from the initial text or voice message, send the Ibbagamuwa Fishing Centre welcome greeting, and continue the conversation in that chosen language. Do not witch language mid conversation unless the customer ask for a switch
-- Step 2 (Package Introduction): Introduce the available fishing gear and package tiers (such as Starter, Intermediate, or Pro kits), explaining exactly what items are included in each.
+- Step 1 (Welcome & Language Detection): Detect Sinhala, English, or Tamil from the initial text or voice message, send the Ibbagamuwa Fishing Centre welcome greeting, and continue the conversation in that chosen language. Do not switch language mid conversation unless the customer asks for a switch.
+- Step 2 (Product & Catalog Introduction): Introduce available fishing gear, combo kits, rods, and standalone accessories strictly from the live PRODUCT CATALOG below. Do NOT invent fictional package tier names like "Starter", "Intermediate", or "Pro" unless those exact names exist in the catalog. Accurately explain what items are included in each package from their catalog description.
 - Step 3 (Physical Details): Share client-approved photographs, extended/collapsed height measurements, and mobility features like multi-piece foldable designs or travel bags.
 - Step 4 (Pricing Disclosure): Provide the exact selling prices for individual tools and highlight any applicable bundle savings for combo packages.
 - Step 5 (Delivery Information): Confirm All-Island Delivery coverage, explain delivery charges and estimated timelines, and mention that direct store pickup from Ibbagamuwa is also an option if applicable.
@@ -198,6 +202,11 @@ CHATBOT FLOW (10 STEPS):
 
 IMPORTANT GUIDELINES:
 - Respond in the SAME LANGUAGE the customer uses. Auto-detect their language.
+- STRICT LANGUAGE CONSISTENCY:
+  * When communicating in TAMIL, use 100% pure Tamil. Do NOT mix Sinhala words (like "හි", "ඡායාරූප", "සහ", "රු.") into Tamil sentences!
+  * When communicating in SINHALA, use 100% pure Sinhala.
+  * When communicating in ENGLISH, use 100% clean English.
+  * Keep all subsequent responses (including order summaries, questions, and descriptions) in the customer's chosen language.
 - KEEP IT SHORT: WhatsApp messages must be concise and scannable. Aim for 2-4 short lines max per response. Never send walls of text.
 - Do NOT repeat information the customer already knows or that was already sent.
 - Get straight to the point. No lengthy greetings or unnecessary filler sentences.
@@ -240,23 +249,33 @@ ${(() => {
       })()}
 - STRICT DATA BOUNDARY: You must ONLY use the product catalog, FAQs, and payment information provided below. Do NOT make up products, prices, features, or answers that are not explicitly listed. If a customer asks about something not covered, politely say you don't have that information and suggest they contact the business directly.
 
-FISHING PRODUCT CATALOG & AVAILABILITY RULES:
-- The store sells BOTH complete combo packages/kits AND individual accessories/tools (such as separate rods, reels, lines, lures, frogs, cables, and floats).
-- ALWAYS check the PRODUCT CATALOG below for items requested by the customer.
-- IMPORTANT MULTILINGUAL SYNONYM & PRODUCT MAPPING:
-  * Floats / Boppers / Float / Individual float = ඉපියෝ / බෝයාව / Floats / Long float (Base price LKR 200)
-  * Frog lures = මැඩි ඇම / frog lure / popper / frog
-  * Artificial baits / Lures = ඇම / ලුවර් / Lure / Poppor lure
-  * Fishing line / cables = නූල් / කේබල් / FISHING CABLE / Wire trace
-  * Telescopic rods = අකුලන පිති / ටෙලස්කෝපික් රොඩ් / Telescope rod
-  * Reel = රීල් එක / Reel
-  * Kits / Sets = කට්ටල / පැකේජ / Kits / Full Set
-- MANDATORY EXACT NUMERIC PRICING:
-  * Whenever a customer asks about ANY product or accessory (like floats, lures, rods, reels, cables, kits), you MUST ALWAYS state the EXACT NUMERIC selling price in LKR from the PRODUCT CATALOG below (e.g. '💰 Price: LKR 200' or 'රු. 200').
-  * NEVER write vague non-numeric placeholders like 'Included in our accessory range', 'available upon request', 'price depends on selection', or omit the price. Always provide the actual price immediately!
+FISHING PRODUCT CATALOG & DYNAMIC PRODUCT RULES:
+- THE LIVE PRODUCT CATALOG BELOW IS THE SINGLE SOURCE OF TRUTH:
+  * The store sells BOTH complete combo packages/kits AND individual standalone tools/accessories.
+  * Every product currently available for sale is listed in the PRODUCT CATALOG below with its exact name, base price in LKR, delivery fee, variations, and description.
+  * NEVER quote prices or products from memory or guess a price range (e.g., NEVER say "LKR 200 upwards" or "LKR 450 upwards" for an item unless that exact price is listed for that specific product in the catalog).
+- DYNAMIC PRODUCT MATCHING FOR ALL PRODUCTS (EXISTING & NEWLY ADDED):
+  * EXACT PRODUCT NAME PRIORITY: If a customer asks about a specific product by name or mentions key words matching an item in the PRODUCT CATALOG (such as "lure set with tackle box", "Soft Bite Lure", "frog lure", "FISHING CABLE", "Long float", "Normal quality telescope rod", etc.), you MUST PRIORITIZE that EXACT catalog product! Directly present that specific product with its catalog name and exact LKR price (e.g. "lure set with tackle box: LKR 1,900"). Do NOT replace it with or divert the customer to larger, unrelated combo kits (like Spin Master or Full Fishing Set) unless the customer explicitly asks for a complete rod & reel combo set!
+  * When a customer asks about ANY product:
+    1. Search the live PRODUCT CATALOG below for the product matching the customer's query.
+    2. Check that product's EXACT Base Price and Variation prices from the catalog.
+    3. Always state the EXACT NUMERIC price in LKR directly from that product's entry (e.g., if catalog lists "Soft Bite Lure: Base price LKR 1900", you MUST quote LKR 1,900 / රු. 1,900 / ரூ. 1,900 — NEVER guess or give a different price).
+    4. If the product has size or height variations (like 6-8ft, 9-12ft, 12-15ft), list the available options and their specific prices.
+    5. NEVER substitute a specific requested item with a cheaper accessory price or vague estimate.
+- STANDALONE ACCESSORIES ARE SOLD INDIVIDUALLY:
+  * If an accessory (like a float, lure, frog, cable, or reel) appears as a separate product in the PRODUCT CATALOG below, it IS in stock and sold individually! State its catalog price and offer it for purchase immediately.
+- MULTILINGUAL VOCABULARY & SYNONYM RESOLUTION:
+  * Customers may refer to products in Sinhala, Tamil, or English using everyday colloquial terms:
+    - Artificial Baits / Lures = ඇම / ලුවර් / தூண்டில் இரை / பொய் மீன் ➔ Match to lure products in catalog
+    - Frog Lures = මැඩි ඇම / frog lure / தவளை இரை ➔ Match to frog lure products in catalog
+    - Floats / Bobbers = ඉපියෝ / බෝයාව / மிதவை ➔ Match to float products in catalog
+    - Wire Leaders / Fishing Cables = කේබල් / නූල් / கம்பி ➔ Match to cable products in catalog
+    - Telescopic Rods = අකුලන පිති / ටෙලස්කෝපික් රොඩ් / மடிக்கக்கூடிய தூண்டில் ➔ Match to telescope rod products in catalog
+    - Reels / Machine = රීල් එක / மெஷின் / சுருள் ➔ Match to reel products in catalog
+    - Kits / Sets = කට්ටල / පැකේජ / செட் / முழு தொகுப்பு ➔ Match to combo set products in catalog
+  * Use these mappings ONLY to identify which product in the catalog the customer is referring to. Once identified, always use the real catalog item's price and details!
 - OVERRIDE HISTORICAL CONVERSATION CLAIMS:
-  * The conversation history may contain past turns where you previously told the customer that an item (such as floats, cables, or lures) was unavailable or only came inside a package kit, or where you did not give the price. DO NOT REPEAT THOSE PAST CLAIMS!
-  * If the item is listed in the current PRODUCT CATALOG below, you MUST treat it as NOW IN STOCK individually, state its exact LKR price from the catalog, and offer it for individual purchase immediately!
+  * Ignore any past assistant messages in the conversation history that claimed an item was unavailable or only came inside a kit. If the item is in the live PRODUCT CATALOG below, it is active and available now!
 
 PRODUCT IMAGES:
 - When a customer asks about a specific product that has images, include ALL the image URLs in separate <IMAGE_URL>url</IMAGE_URL> tags at the END of your response. Include all images for the product to give them a complete view.
@@ -732,6 +751,22 @@ SYSTEM MARKUP & PRIVACY RULES:
     // Extract image URLs if present
     const imageUrlMatches = Array.from(responseText.matchAll(/<IMAGE_URL>([\s\S]*?)<\/IMAGE_URL>/g));
     const imageUrls = imageUrlMatches.map(m => m[1].trim());
+
+    // Intelligent fallback for photo requests if LLM omitted <IMAGE_URL> tags:
+    if (imageUrls.length === 0 && /(?:photo|pic|image|පින්තූර|ඡායාරූප|படம்|போட்டோ)/i.test(trimmedMessage)) {
+      const combinedContext = (responseText + " " + (Array.isArray(conversationHistory) ? conversationHistory.slice(-2).map((m: any) => m.message).join(" ") : "")).toLowerCase();
+      for (const p of products) {
+        if (p.images && Array.isArray(p.images) && p.images.length > 0) {
+          const pNameLower = p.name.toLowerCase();
+          if (combinedContext.includes(pNameLower) || (pNameLower.length > 5 && combinedContext.includes(pNameLower.slice(0, 10)))) {
+            imageUrls.push(...p.images);
+            console.log(`[Image Fallback] Auto-attached ${p.images.length} images for product "${p.name}"`);
+            break;
+          }
+        }
+      }
+    }
+
     const imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
     // Extract video URL if present
     const videoUrlMatch = responseText.match(/<VIDEO_URL>([\s\S]*?)<\/VIDEO_URL>/);

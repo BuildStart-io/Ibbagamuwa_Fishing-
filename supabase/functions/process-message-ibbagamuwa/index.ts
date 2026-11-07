@@ -474,8 +474,14 @@ async function handleWelcomeMessage(
   const msgLower = messageText.toLowerCase();
   const shouldBypass = bypassTriggers.length > 0 && bypassTriggers.some((t: string) => msgLower.includes(t));
 
-  if (shouldBypass) {
-    console.log(`[${corrId}] Bypass trigger matched, skipping welcome`);
+  // If the user's first message contains an inquiry, ad referral, product mention, image, or question,
+  // do NOT swallow it with a static welcome message. Delegate directly to AI so the customer gets both
+  // a warm welcome greeting in their own language and immediate product information!
+  const hasInquiryKeywords = /(?:info|more info|price|cost|how much|kiyada|gana|mila|wistara|details|photo|pic|image|rod|reel|lure|frog|cable|float|net|set|kit|ඇම|පිති|රොඩ්|මිල|කීයද|විස්තර|இருக்கு|விலை|படம்|தூண்டில்)/i.test(msgLower);
+  const isAdClickOrLong = msgLower.includes("can i get more info") || msgLower.length > 30;
+
+  if (shouldBypass || hasInquiryKeywords || isAdClickOrLong) {
+    console.log(`[${corrId}] Customer sent an inquiry or ad message on first contact (${msgLower.substring(0, 40)}), bypassing static welcome message to let AI handle greeting + product details`);
     return false;
   }
 
