@@ -12,6 +12,10 @@ services:
       # ── BuildStart.io edge function secrets ──────────────────────────────────
       AI_GENERATE_URL: ${AI_GENERATE_URL}
       BOT_API_KEY: ${BOT_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       WAHA_BASE_URL: ${WAHA_BASE_URL}
       WAHA_API_KEY: ${WAHA_API_KEY}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT}

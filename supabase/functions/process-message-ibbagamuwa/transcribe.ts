@@ -14,6 +14,8 @@ export async function transcribeAudio(
 ): Promise<string | null> {
   const WAHA_BASE = (Deno.env.get("WAHA_BASE_URL") || "").replace(/\/+$/, "");
   const WAHA_KEY = Deno.env.get("WAHA_API_KEY") || "";
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+  const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "";
   const AI_GENERATE_URL = Deno.env.get("AI_GENERATE_URL") || "";
   const BOT_API_KEY = Deno.env.get("BOT_API_KEY") || "";
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
@@ -47,6 +49,83 @@ export async function transcribeAudio(
   const cleanMime = (mimeType || "audio/ogg").split(";")[0].trim() || "audio/ogg";
   const base64Audio = bytesToBase64(audioBuffer);
   const dataUrl = `data:${cleanMime};base64,${base64Audio}`;
+
+  // 1b. Direct Google Gemini API (gemini-2.5-flash natively handles audio via inlineData)
+  if (GEMINI_API_KEY) {
+    try {
+      console.log("Transcribing audio using Google Gemini API (gemini-2.5-flash)...");
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const res = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: "You are a verbatim speech-to-text transcriber for WhatsApp voice messages in Sri Lanka. The language could be Sinhala, English, Tamil, or Singlish. Transcribe the spoken audio verbatim in its native language/script (Sinhala script for Sinhala, Tamil script for Tamil, Latin script for English/Singlish). Do NOT translate. Do NOT summarize. Do NOT add preamble, quotes, markdown formatting, or commentary. Output ONLY the exact transcribed words. If the audio has no speech or is unintelligible noise, output [UNINTELLIGIBLE]."
+                },
+                {
+                  inlineData: {
+                    mimeType: cleanMime,
+                    data: base64Audio
+                  }
+                }
+              ]
+            }
+          ]
+        }),
+        signal: AbortSignal.timeout(20_000)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        let text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+        text = text.replace(/^["'`]+|["'`]+$/g, "").trim();
+        if (text && text !== "[UNINTELLIGIBLE]") {
+          console.log("Gemini API transcription successful:", text);
+          return text;
+        } else {
+          console.warn(`Gemini API returned no intelligible speech: "${text}"`);
+        }
+      } else {
+        console.warn(`Gemini API transcription failed (${res.status}): ${await res.text()}`);
+      }
+    } catch (err) {
+      console.warn("Gemini API transcription error:", err);
+    }
+  }
+
+  // 1c. Groq Cloud Whisper API (whisper-large-v3, sub-second transcription)
+  if (GROQ_API_KEY) {
+    try {
+      console.log("Transcribing audio using Groq Whisper API (whisper-large-v3)...");
+      const formData = new FormData();
+      const audioBlob = new Blob([audioBuffer], { type: cleanMime });
+      formData.append("file", audioBlob, "voice_message.ogg");
+      formData.append("model", "whisper-large-v3");
+
+      const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}` },
+        body: formData,
+        signal: AbortSignal.timeout(15_000)
+      });
+
+      if (groqRes.ok) {
+        const groqData = await groqRes.json();
+        const text = (groqData?.text || "").trim();
+        if (text) {
+          console.log("Groq Whisper transcription successful:", text);
+          return text;
+        }
+      } else {
+        console.warn(`Groq Whisper failed (${groqRes.status}): ${await groqRes.text()}`);
+      }
+    } catch (err) {
+      console.warn("Groq Whisper transcription error:", err);
+    }
+  }
 
   // 2. Primary: Same AI model used for texting (google/gemini-3-flash-preview via AI_GENERATE_URL / BOT_API_KEY)
   if (AI_GENERATE_URL && BOT_API_KEY) {
@@ -142,8 +221,6 @@ export async function transcribeAudio(
       const audioBlob = new Blob([audioBuffer], { type: cleanMime });
       formData.append("file", audioBlob, "voice_message.ogg");
       formData.append("model", "whisper-1");
-      formData.append("language", "si");
-      formData.append("prompt", "Ibbagamuwa Fishing Centre ඇණවුම් විමසීම");
 
       const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
         method: "POST",

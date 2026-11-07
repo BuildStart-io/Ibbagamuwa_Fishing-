@@ -154,13 +154,24 @@ async function processMessage(
 ) {
   let { user_id: userId, phone_number: phoneNumber, sender_name: senderName, message_text: messageText, message_type: messageType, session_api_key: sessionApiKey, raw_payload: body, wsender_message_id: wahaMessageId } = msg;
 
+  // Extract direct media URL and mimetype if available
+  const attachedMediaUrl = body?.payload?.media?.url || body?.media?.url || body?.payload?.url || null;
+  const attachedMediaMime = (body?.payload?.media?.mimetype || body?.media?.mimetype || "").toLowerCase();
+
   let isVoice = false;
-  if (messageType === "ptt" || messageType === "audio") {
+  if (
+    messageType === "ptt" ||
+    messageType === "audio" ||
+    messageType === "voice" ||
+    attachedMediaMime.startsWith("audio/") ||
+    (attachedMediaUrl && /\.(mp3|wav|ogg|m4a|aac|amr|opus|oga)(\?|$)/i.test(attachedMediaUrl))
+  ) {
     isVoice = true;
+    messageType = "ptt";
   }
 
-  const isImage = messageType === "image";
-  const isDocument = messageType === "document";
+  const isImage = !isVoice && messageType === "image";
+  const isDocument = !isVoice && messageType === "document";
   const isImageOrDoc = isImage || isDocument;
 
   // Media types that should be ignored without triggering AI (stickers, vcards, locations, videos)
@@ -168,9 +179,6 @@ async function processMessage(
   const isIgnoredMedia = ignoredMediaTypes.includes(messageType) || 
     (!messageText && messageType !== "text" && !isVoice && !isImageOrDoc) ||
     (body?.data?.messages?.messageBody === undefined && body?.data?.messages?.message?.conversation === undefined && !isVoice && !isImageOrDoc && !messageText);
-
-  // Extract direct media URL if available
-  const attachedMediaUrl = body?.payload?.media?.url || body?.media?.url || body?.payload?.url || null;
 
   // Build appropriate display text for storing in conversations
   let storedMessageText = messageText || "";

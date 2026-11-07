@@ -123,9 +123,13 @@ serve(async (req) => {
       || wp._data?.message?.extendedTextMessage?.text
       || "";
 
-    // Message type — derive from WAHA `type` or `_data.message.*` keys
+    // Message type — derive from WAHA `type`, MIME type, or `_data.message.*` keys
+    const mediaMime = (wp.media?.mimetype || wp._data?.mimetype || wp.mimetype || "").toLowerCase();
+    const mediaUrl = (wp.media?.url || wp.url || "").toLowerCase();
+
     let messageType = wp.type || "text";
     if (messageType === "chat") messageType = "text";
+    if (messageType === "voice") messageType = "ptt";
     
     const wMsg = wp._data?.message || {};
     if (wMsg.imageMessage) messageType = "image";
@@ -134,7 +138,23 @@ serve(async (req) => {
     else if (wMsg.documentMessage) messageType = "document";
     else if (wMsg.stickerMessage) messageType = "sticker";
     else if (wMsg.locationMessage) messageType = "location";
-    else if (wp.hasMedia && !messageText && messageType === "text") messageType = "image";
+    else if (wp.hasMedia || mediaMime || mediaUrl) {
+      if (
+        mediaMime.startsWith("audio/") ||
+        /\.(mp3|wav|ogg|m4a|aac|amr|opus|oga)(\?|$)/i.test(mediaUrl) ||
+        messageType === "voice" ||
+        messageType === "ptt" ||
+        messageType === "audio"
+      ) {
+        messageType = "ptt";
+      } else if (mediaMime.startsWith("video/") || /\.(mp4|mov|avi|mkv|3gp)(\?|$)/i.test(mediaUrl)) {
+        messageType = "video";
+      } else if (mediaMime.startsWith("application/") || mediaMime.startsWith("text/") || /\.(pdf|doc|docx|xls|xlsx|txt)(\?|$)/i.test(mediaUrl)) {
+        messageType = "document";
+      } else {
+        messageType = "image";
+      }
+    }
 
     const senderName = wp._data?.pushName || wp._data?.notifyName || wp.notifyName || "Unknown";
     const wahaMessageId = wp.id || wp._data?.key?.id || `${phoneNumber}-${Date.now()}`;

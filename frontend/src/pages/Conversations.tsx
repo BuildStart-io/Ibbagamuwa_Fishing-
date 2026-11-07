@@ -629,9 +629,14 @@ export default function Conversations() {
                             )}
                           >
                             {msg.message_type === "audio" || msg.message_type === "ptt" ? (
-                              <div className="flex items-center gap-1.5 opacity-80">
-                                <Mic className="h-4 w-4" />
-                                <span className="italic">Voice message</span>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5 opacity-80">
+                                  <Mic className="h-4 w-4" />
+                                  <span className="italic">Voice message</span>
+                                </div>
+                                {msg.message && (
+                                  <p className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.message) }} />
+                                )}
                               </div>
                             ) : (
                               <p className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.message) }} />
