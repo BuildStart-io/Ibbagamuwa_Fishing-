@@ -81,7 +81,11 @@ async function resolveOwner(req: Request): Promise<{ ownerId: string; userId: st
   const userId = (data as any)?.claims?.sub;
   if (error || !userId) return null;
 
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const dbSchema = (Deno.env.get("DB_SCHEMA") || "ibbagamuwa_customization").toLowerCase();
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    db: { schema: dbSchema },
+    auth: { persistSession: false },
+  });
   const { data: staff } = await admin
     .from("staff_accounts")
     .select("owner_id")

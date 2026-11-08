@@ -58,7 +58,11 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, serviceKey);
+  const dbSchema = (Deno.env.get("DB_SCHEMA") || "ibbagamuwa_customization").toLowerCase();
+  const supabase = createClient(supabaseUrl, serviceKey, {
+    db: { schema: dbSchema },
+    auth: { persistSession: false },
+  });
 
   const summary: Record<string, unknown>[] = [];
 
@@ -239,7 +243,7 @@ Deno.serve(async (req) => {
         }
 
         try {
-          const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp`, {
+          const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-ibbagamuwa`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${serviceKey}`,
