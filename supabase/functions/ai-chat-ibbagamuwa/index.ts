@@ -199,8 +199,8 @@ serve(async (req) => {
 
     const conversationContext = Array.isArray(conversationHistory)
       ? (conversationHistory as ConversationMessage[])
-          .map(msg => `${msg.direction === "inbound" ? "Customer" : "Assistant"}: ${msg.message}`)
-          .join("\n")
+        .map(msg => `${msg.direction === "inbound" ? "Customer" : "Assistant"}: ${msg.message}`)
+        .join("\n")
       : "";
 
     // Pre-match customer inquiry against active products in the catalog
@@ -281,43 +281,8 @@ ${(() => {
       })()}
 - STRICT DATA BOUNDARY: You must ONLY use the product catalog, FAQs, and payment information provided below. Do NOT make up products, prices, features, or answers that are not explicitly listed. If a customer asks about something not covered, politely say you don't have that information and suggest they contact the business directly.
 
-FISHING PRODUCT CATALOG & DYNAMIC PRODUCT RULES:
-- UNIVERSAL DYNAMIC CATALOG RULES (MANDATORY):
-  * THE LIVE "PRODUCT CATALOG" BELOW IS THE COMPLETE, DYNAMIC SOURCE OF TRUTH.
-  * The business adds products dynamically to this catalog. The catalog may contain ANY product, item name, code, test entry, or custom item in any language.
-  * NEVER assume a product name is invalid, typo, slang, or test data just because it sounds unfamiliar (e.g. "vikkkyg" or any newly added item).
-  * If a customer asks about, inquires about, or mentions ANY product name that matches or relates to an item in the PRODUCT CATALOG below:
-    1. You MUST immediately recognize it as a valid, in-stock product available for purchase!
-    2. Quote its EXACT numeric Base Price in LKR directly from its entry (e.g., if catalog says "vikkkyg: Base price LKR 677788", you MUST state LKR 677,788 — NEVER change it to any other price! If catalog says "Long float: Base price LKR 200", you MUST quote LKR 200 / රු. 200 / ரூ. 200).
-    3. State its delivery fee and description as listed in the catalog.
-    4. If the product has NO image URLs listed in the catalog (like 'vikkkyg'), DO NOT include any <IMAGE_URL> tags! Never invent fake image URLs.
-    5. NEVER say "I'm not quite sure what you mean by...", NEVER claim the product is unavailable, and NEVER divert the customer away to other items when they asked for an item that is in the catalog!
-- STRICT ZERO-HALLUCINATION PRICING:
-  * NEVER quote prices or products from memory or guess a price range.
-  * OVERRIDE PAST CONVERSATION MESSAGES: If a previous message in the conversation history erroneously mentioned a wrong, outdated, or hallucinated price (for example LKR 150 for Long float), YOU MUST IGNORE THAT PAST PRICE and provide the REAL price from the live catalog (LKR 200)! The live PRODUCT CATALOG always overrides past conversation history.
-  * Standalone accessories (floats, lures, cables, reels) are sold individually at their exact catalog price.
-- STANDALONE ACCESSORIES & EXACT ITEM PRIORITY (MANDATORY):
-  * When a customer asks about a specific item like a float ("Float", "Float evalavu", "Long float", "ඉපියා", "மிதவை"), lure ("Soft Bite Lure", "frog lure"), cable ("FISHING CABLE"), or reel:
-    1. You MUST IMMEDIATELY offer the standalone catalog item (e.g. "Long float: Base price LKR 200")!
-    2. Directly quote its exact price: LKR 200 / රු. 200 / ரூ. 200.
-    3. NEVER tell the customer that it is only available inside a combo kit or as a free bonus!
-    4. NEVER tell the customer that they have to visit the physical store to buy standalone floats or accessories! Standalone floats and accessories ARE sold online with All-Island Delivery (COD and Bank Transfer)!
-- MULTILINGUAL VOCABULARY & SYNONYM RESOLUTION:
-  * Customers may refer to products in Sinhala, Tamil, or English using everyday colloquial terms:
-    - Artificial Baits / Lures = ඇම / ලුවර් / தூண்டில் இரை / பொய் மீன் ➔ Match to lure products in catalog
-    - Frog Lures = මැඩි ඇම / frog lure / தவளை இரை ➔ Match to frog lure products in catalog
-    - Floats / Bobbers = ඉපියෝ / බෝයාව / மிதவை ➔ Match to float products in catalog
-    - Wire Leaders / Fishing Cables = කේබල් / නූල් / கம்பி ➔ Match to cable products in catalog
-    - Telescopic Rods = අකුලන පිති / ටෙලස්කෝපික් රොඩ් / மடிக்கக்கூடிய தூண்டில் ➔ Match to telescope rod products in catalog
-    - Reels / Machine = රීල් එක / மெஷின் / சுருள் ➔ Match to reel products in catalog
-    - Kits / Sets = කට්ටල / පැකේජ / செட் / முழு தொகுப்பு ➔ Match to combo set products in catalog
-  * Use these mappings ONLY to identify which product in the catalog the customer is referring to. Once identified, always use the real catalog item's price and details!
-- OVERRIDE HISTORICAL CONVERSATION CLAIMS:
-  * Ignore any past assistant messages in the conversation history that claimed an item was unavailable or only came inside a kit. If the item is in the live PRODUCT CATALOG below, it is active and available now!
-
 PRODUCT IMAGES:
 - When a customer asks about a specific product that has images, or when you introduce/present a product, include ALL its image URLs in separate <IMAGE_URL>url</IMAGE_URL> tags at the END of your response.
-- Customers do NOT have to ask for photos explicitly. Always attach the product images so customers can see what they are buying!
 - Only use image URLs from the product catalog below. Never make up image URLs.
 
 PRODUCT VIDEOS:
