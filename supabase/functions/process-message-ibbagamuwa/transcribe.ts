@@ -51,6 +51,7 @@ export async function transcribeAudio(sessionName: string, wahaMessageId: string
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
         models: ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"],
         messages: [
           {
@@ -61,9 +62,10 @@ export async function transcribeAudio(sessionName: string, wahaMessageId: string
                 text: "Transcribe this audio verbatim in its native language/script (Sinhala, Tamil, English, or Singlish). Do NOT translate or summarize. Output ONLY the transcription."
               },
               {
-                type: "image_url",
-                image_url: {
-                  url: `data:audio/ogg;base64,${base64Audio}`
+                type: "input_audio",
+                input_audio: {
+                  data: base64Audio,
+                  format: "ogg"
                 }
               }
             ]
