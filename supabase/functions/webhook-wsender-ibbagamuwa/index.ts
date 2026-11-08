@@ -30,6 +30,7 @@ serve(async (req) => {
   const dbSchema = (Deno.env.get("DB_SCHEMA") || "ibbagamuwa_customization").toLowerCase();
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     db: { schema: dbSchema },
+    auth: { persistSession: false },
   });
 
   const correlationId = crypto.randomUUID();

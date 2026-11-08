@@ -17,9 +17,10 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    const dbSchema = ("ibbagamuwa_customization").toLowerCase();
+    const dbSchema = (Deno.env.get("DB_SCHEMA") || "ibbagamuwa_customization").toLowerCase();
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       db: { schema: dbSchema },
+      auth: { persistSession: false },
     });
 
     console.log(`Starting GLOBAL CRM usage sync...`);

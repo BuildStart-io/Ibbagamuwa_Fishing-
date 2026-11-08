@@ -94,11 +94,14 @@ serve(async (req) => {
     }
 
     // Get all device tokens for this user
-    const dbSchema = ("ibbagamuwa_customization").toLowerCase();
+    const dbSchema = (Deno.env.get("DB_SCHEMA") || "ibbagamuwa_customization").toLowerCase();
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { db: { schema: dbSchema } }
+      {
+        db: { schema: dbSchema },
+        auth: { persistSession: false },
+      }
     );
 
     const { data: tokens, error } = await supabaseAdmin

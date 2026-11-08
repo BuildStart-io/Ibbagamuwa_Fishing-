@@ -118,9 +118,10 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const dbSchema = "ibbagamuwa_customization";
+    const dbSchema = (Deno.env.get("DB_SCHEMA") || "ibbagamuwa_customization").toLowerCase();
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       db: { schema: dbSchema },
+      auth: { persistSession: false },
     });
 
     // Identify the calling user from the JWT (token already verified by gateway = false; we self-check)
@@ -131,7 +132,6 @@ serve(async (req) => {
     }
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
-      db: { schema: dbSchema },
     });
     const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
     if (claimsError || !claimsData?.claims?.sub) {
@@ -144,11 +144,7 @@ serve(async (req) => {
 
     // WAHA session name locked to the user — slug-safe, deterministic, fits within ~25 chars.
     const sessionName = `u_${userId.replace(/-/g, "").substring(0, 20)}`;
-    let override = Deno.env.get("WEBHOOK_URL_OVERRIDE");
-    if (override && !override.includes("-ibbagamuwa")) {
-      override = override.replace("webhook-wsender", "webhook-wsender-ibbagamuwa");
-    }
-    const webhookUrl = override || `${supabaseUrl}/functions/v1/webhook-wsender-ibbagamuwa`;
+    const webhookUrl = Deno.env.get("WEBHOOK_URL_OVERRIDE") || `${supabaseUrl}/functions/v1/webhook-wsender-ibbagamuwa`;
 
     // Helper: store/update mapping in user_wsender_sessions
     const upsertMapping = async (displayName?: string) => {

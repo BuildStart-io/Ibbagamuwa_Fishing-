@@ -239,8 +239,9 @@ serve(async (req) => {
   }
 
   try {
+    const dbSchema = (Deno.env.get("DB_SCHEMA") || "ibbagamuwa_customization").toLowerCase();
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      db: { schema: "ibbagamuwa_customization" },
+      db: { schema: dbSchema },
     });
 
     // Authenticate user

@@ -30,6 +30,7 @@ serve(async (req) => {
     const dbSchema = (Deno.env.get("DB_SCHEMA") || "ibbagamuwa_customization").toLowerCase();
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       db: { schema: dbSchema },
+      auth: { persistSession: false },
     });
 
     const { message, phoneNumber, conversationHistory, userId, sessionApiKey, senderName } = await req.json();
@@ -233,12 +234,11 @@ CHATBOT FLOW (10 STEPS):
 - Step 10 (Automated Follow-Up): Scheduled automated follow-up messages will re-engage users who stop responding before completing the qualification flow.
 
 IMPORTANT GUIDELINES:
-- LANGUAGE LOCK:
-  * Detect language on the first turn (English, Sinhala, or Tamil) and lock it.
-  * Never switch language mid-conversation unless the customer explicitly requests it.
-  * Short or neutral replies MUST stay in the established language.
-  * Product names containing Sinhala/Tamil text are NOT language switch requests. Stay in the established language.
-  * When in English, use 100% clean English. When in Sinhala, use 100% pure Sinhala. When in Tamil, use 100% pure Tamil with zero Sinhala script.
+- LANGUAGE PERSISTENCE & AUTO-DETECTION:
+  - Respond in the customer's language (Sinhala, English, or Tamil).
+  - CRITICAL: Determine language strictly from the CUSTOMER'S inbound messages, NOT from your own previous responses. If the customer has been communicating in English, STAY in English even when they provide short answers, numbers, dimensions (like '7 feet' or '20g, 35cm'), quantities, 'COD', or addresses.
+  - NEVER switch to Sinhala or Tamil unless the customer explicitly writes in Sinhala/Tamil script, Singlish, or requests that language.
+  - When in English, use 100% clean English. When in Sinhala, use 100% pure Sinhala. When in Tamil, use 100% pure Tamil with zero Sinhala script.
 - KEEP IT SHORT: WhatsApp messages must be concise and scannable. Aim for 2-4 short lines max per response. Never send walls of text.
 - Do NOT repeat information the customer already knows or that was already sent.
 - Get straight to the point. No lengthy greetings or unnecessary filler sentences.
@@ -259,8 +259,12 @@ IMPORTANT GUIDELINES:
   - For order summaries, use emojis to mark each section (📦 Items, 💰 Total, 🚚 Delivery, 💳 Payment)
 - If a customer wants to order, guide them through collecting: name, phone, product selection with variations, quantity, and payment method.
 - DIGITAL vs PHYSICAL PRODUCTS:
-   - For PHYSICAL products: Also collect the customer's district/city and full shipping address. Offer both Cash on Delivery (COD) and Bank Transfer as payment options. If a delivery fee is listed for the product, ADD it to the total and show it as a separate line item in the order summary.
-${freeDeliveryThreshold > 0 ? `   - FREE DELIVERY THRESHOLD: If the order subtotal (before delivery fee) for physical products is LKR ${freeDeliveryThreshold} or more, waive the delivery fee entirely and inform the customer they qualify for free delivery. If below this threshold, apply the normal delivery fee.` : ""}
+   - For PHYSICAL products: Also collect the customer's district/city and full shipping address. Offer both Cash on Delivery (COD) and Bank Transfer as payment options.
+   - DELIVERY FEE IS PER ORDER (NOT PER ITEM):
+     - The delivery fee applies once per order/shipment. NEVER sum or multiply delivery fees across multiple items!
+     - If multiple physical items are ordered together, apply only the single highest delivery fee among the selected items (e.g., if one item has LKR 350 delivery and another has LKR 450, the order delivery fee is LKR 450, NOT LKR 800).
+     - Display the delivery fee as a single clean line item in the summary (e.g., 🚚 Delivery Fee: LKR 450).
+${freeDeliveryThreshold > 0 ? `   - FREE DELIVERY THRESHOLD: If the order subtotal (before delivery fee) for physical products is LKR ${freeDeliveryThreshold} or more, waive the delivery fee entirely (LKR 0) and inform the customer they qualify for free delivery. If below this threshold, apply the single per-order delivery fee.` : ""}
   - For DIGITAL products: Do NOT ask for a shipping address. Do NOT offer Cash on Delivery. The ONLY payment method for digital products is Bank Transfer. No delivery fee applies. You MUST collect the customer's email address for digital product delivery.
 - Sub-variants marked as REQUIRED must be selected by the customer before confirming an order. Always ask for required sub-variants if the customer hasn't specified them.
 - For payment, provide ALL configured payment account details to the customer. List every account with emoji separators:
@@ -282,9 +286,11 @@ ${(() => {
 - STRICT DATA BOUNDARY: You must ONLY use the product catalog, FAQs, and payment information provided below. Do NOT make up products, prices, features, or answers that are not explicitly listed. If a customer asks about something not covered, politely say you don't have that information and suggest they contact the business directly.
 
 PRODUCT IMAGES:
-- Send product images ONLY when first introducing/presenting a product, or if the customer explicitly asks to see photos/images.
-- NEVER send images a second time during variation selection, checkout, or order confirmation.
-- If a product's photo was already shown earlier in the conversation history, do NOT include <IMAGE_URL> tags.
+- ONLY attach product images when:
+  1. A product is first introduced or recommended in the chat, OR
+  2. The customer explicitly asks to see photos/images of the product.
+- NEVER attach <IMAGE_URL> tags when the customer is simply answering questions (such as selecting variations/options, giving lengths like '7 feet', quantities like '4 each', colors, providing their address, or choosing payment).
+- When sending images for a product, include ALL the image URLs in separate <IMAGE_URL>url</IMAGE_URL> tags at the END of your response. Include all images for the product to give them a complete view.
 - Only use image URLs from the product catalog below. Never make up image URLs.
 
 PRODUCT VIDEOS:

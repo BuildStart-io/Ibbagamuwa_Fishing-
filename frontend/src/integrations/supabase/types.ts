@@ -691,6 +691,7 @@ export type Database = {
       [_ in never]: never
     }
   }
+  ibbagamuwa_customization: Database["public"]
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
