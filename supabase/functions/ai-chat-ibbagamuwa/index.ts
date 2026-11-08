@@ -282,7 +282,7 @@ ${(() => {
 - STRICT DATA BOUNDARY: You must ONLY use the product catalog, FAQs, and payment information provided below. Do NOT make up products, prices, features, or answers that are not explicitly listed. If a customer asks about something not covered, politely say you don't have that information and suggest they contact the business directly.
 
 PRODUCT IMAGES:
-- When a customer asks about a specific product that has images, or when you introduce/present a product, include ALL its image URLs in separate <IMAGE_URL>url</IMAGE_URL> tags at the END of your response.
+- When a customer asks about a specific product that has images, or when you introduce/present a product, include ALL its image URLs in separate <IMAGE_URL>url</IMAGE_URL> tags at the END of your response only the first time unless the customer ask againg for images.
 - Only use image URLs from the product catalog below. Never make up image URLs.
 
 PRODUCT VIDEOS:
