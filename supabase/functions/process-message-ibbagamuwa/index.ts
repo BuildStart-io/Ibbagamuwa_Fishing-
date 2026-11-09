@@ -185,7 +185,8 @@ async function processMessage(
   if (isVoice) {
     console.log(`[${corrId}] Detected voice message, attempting transcription...`);
     const mediaUrl = body?.payload?.media?.url || body?.media?.url;
-    const transcription = await transcribeAudio(sessionApiKey, wahaMessageId, mediaUrl);
+    const mimeType = body?.payload?.media?.mimetype || body?.media?.mimetype || "audio/ogg";
+    const transcription = await transcribeAudio(sessionApiKey, wahaMessageId, mediaUrl, mimeType);
     if (transcription) {
       messageText = transcription;
       if (inboundMsg?.id) {
@@ -202,7 +203,7 @@ async function processMessage(
         }).eq('id', inboundMsg.id);
       }
       
-      const apologyText = "I couldn't hear that clearly. Could you please resend it or type it out for me?";
+      const apologyText = "මට ඔබේ හඬ පණිවිඩය පැහැදිලිව ඇසුණේ නැත. කරුණාකර නැවත එවන්න හෝ ටයිප් කර එවන්න. / உங்கள் குரல் செய்தி தெளிவாகக் கேட்கவில்லை. தயவுசெய்து மீண்டும் அனுப்பவும் அல்லது டைப் செய்யவும். 🎙️";
       await supabase.from("conversations").insert({
         phone_number: phoneNumber,
         message: apologyText,
