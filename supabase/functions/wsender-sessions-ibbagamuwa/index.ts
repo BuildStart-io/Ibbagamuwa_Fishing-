@@ -144,7 +144,11 @@ serve(async (req) => {
 
     // WAHA session name locked to the user — slug-safe, deterministic, fits within ~25 chars.
     const sessionName = `u_${userId.replace(/-/g, "").substring(0, 20)}`;
-    const webhookUrl = Deno.env.get("WEBHOOK_URL_OVERRIDE") || `${supabaseUrl}/functions/v1/webhook-wsender-ibbagamuwa`;
+    let override = Deno.env.get("WEBHOOK_URL_OVERRIDE");
+    if (override && !override.includes("-ibbagamuwa")) {
+      override = override.replace("webhook-wsender", "webhook-wsender-ibbagamuwa");
+    }
+    const webhookUrl = override || `${supabaseUrl}/functions/v1/webhook-wsender-ibbagamuwa`;
 
     // Helper: store/update mapping in user_wsender_sessions
     const upsertMapping = async (displayName?: string) => {
@@ -317,9 +321,27 @@ serve(async (req) => {
       }
 
       case "set-webhook": {
-        // WAHA sets webhook at session creation; we re-create the session with a fresh webhook URL.
-        // No-op success here (already configured by create-session).
-        return new Response(JSON.stringify({ data: { ok: true } }), { headers: jsonHeaders });
+        let override = Deno.env.get("WEBHOOK_URL_OVERRIDE");
+        if (override && !override.includes("-ibbagamuwa")) {
+          override = override.replace("webhook-wsender", "webhook-wsender-ibbagamuwa");
+        }
+        const targetWebhookUrl = override || `${supabaseUrl}/functions/v1/webhook-wsender-ibbagamuwa`;
+        try {
+          await wahaFetch(`/api/sessions/${sessionName}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              config: {
+                webhooks: [{
+                  url: targetWebhookUrl,
+                  events: ["message", "session.status"],
+                }],
+              },
+            }),
+          });
+        } catch (e) {
+          console.warn("WAHA put webhook notice:", e);
+        }
+        return new Response(JSON.stringify({ data: { ok: true, webhookUrl: targetWebhookUrl } }), { headers: jsonHeaders });
       }
 
       case "delete-session": {
