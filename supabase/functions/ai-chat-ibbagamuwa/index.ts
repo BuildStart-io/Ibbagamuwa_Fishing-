@@ -588,7 +588,7 @@ CRITICAL SECURITY RULE:
         /(?:කරුණාකර\s*පහත\s*විස්තර|විස්තර\s*ලබා\s*දෙන්න|විස්තර\s*එවන්න|විස්තර\s*අවශ්‍යයි|ඔබගේ\s*විස්තර\s*එවන්න|விபரங்களை\s*அனுப்புங்கள்|விபரங்களை\s*தரவும்|விபரம்\s*தேவை|தயவுசெய்து\s*உங்கள்|விபரங்களை\s*வழங்கவும்|please\s*provide\s*(?:your)?\s*(?:name|details|address)|send\s*(?:your)?\s*(?:details|address))/i.test(responseText);
 
       const isOrderConfirmation =
-        /(?:ඇණවුම\s*සාර්ථකව|ඇණවුම\s*තහවුරු|ඇණවුම\s*භාරගත්තා|ඔබේ\s*ඇණවුම\s*(?:සටහන්|සාර්ථක)|ஆர்டர்\s*உறுதி|ஆர்டர்\s*பதிவு|ஆர்டரை\s*உறுதி|Order\s*Confirmed|Order\s*Summary|Order\s*has\s*been\s*placed|Thank\s*you\s*(?:for\s*your)?\s*order|ස්තූතියි.*ඇණවුම)/i.test(responseText);
+        /(?:(?:ඔබගේ|ඔබේ)?\s*ඇණවුම\s*(?:සාර්ථකව|තහවුරු|භාර|සටහන්|ස්ථිර|ලැබුණා)|ඇණවුම\s*(?:ස්ථිර|තහවුරු|සාර්ථක|සටහන්)|(?:உங்கள்)?\s*ஆர்டர்\s*(?:உறுதி|பதிவு|வெற்றிகரமாக)|ஆர்டரை\s*(?:உறுதி|பதிவு)|Order\s*(?:Confirmed|Summary|has\s*been\s*placed|Received)|Thank\s*you.*(?:order|ඇණවුම|ஆர்டர்)|ස්තූතියි.*ඇණවුම)/i.test(responseText);
 
       if (isOrderConfirmation && !isAskingForDetails) {
         console.log("Fallback 2: Detected verified order confirmation text without ORDER_JSON tag.");
@@ -596,28 +596,34 @@ CRITICAL SECURITY RULE:
         // Robust Markdown & Multilingual Name extraction
         const nameMatch = responseText.match(/(?:👤\s*)?(?:\*{1,2})?(?:නම|Customer\s*Name|Name|பெயர்)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?([^\n\r*]+?)(?:\*{1,2})?(?:\n|\r|$)/i);
         
-        // Robust Phone extraction
-        const phoneMatch = responseText.match(/(?:📞\s*)?(?:\*{1,2})?(?:දුරකථන(?:\s*අංකය)?|Phone|Mobile|தொலைபேசி(?:\s*இலக்கம்)?)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?([0-9\s+-]{9,15})/i) ||
+        // Robust Phone extraction (supports දුරකථන, දුරකථනය, தொலைபேசி, தொலைபேசி எண், Phone, etc.)
+        const phoneMatch = responseText.match(/(?:📞\s*)?(?:\*{1,2})?(?:දුරකථන(?:ය|්)?(?:\s*අංකය)?|Phone|Mobile|தொலைபேசி(?:\s*(?:எண்|இலக்கம்))?)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?([0-9\s+-]{9,15})/i) ||
                            trimmedMessage.match(/(?:0|94|\+94)?7[0-9]{8}\b/);
         
         // Robust Address extraction
         const addressMatch = responseText.match(/(?:(?:📍|🏠)\s*)?(?:\*{1,2})?(?:ලිපිනය|Address|Delivery\s*Address|முகவரி)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?([^\n\r*]+?)(?:\*{1,2})?(?:\n|\r|$)/i);
 
-        // Robust Total Amount extraction (supports Markdown **Total Amount:** LKR 11,050, Rs., රු, etc.)
-        const totalMatch = responseText.match(/(?:[💵💰]\s*)?(?:\*{1,2})?(?:මුළු\s*(?:එකතුව|මුදල)|Total(?:\s*Amount)?|Net\s*Total|மொத்த(?:\s*தொகை)?)(?:\*{1,2})?\s*(?:\([^)]*\))?\s*[:\-]\s*(?:\*{1,2})?\s*(?:LKR|Rs\.?|රු\.?|ரூ\.?)?\s*([\d,]+(?:\.\d+)?)/i);
+        // Robust Total Amount extraction (supports மொத்தத் தொகை, செலுத்த வேண்டிய மொத்தத் தொகை, මුළු මුදල, Total Amount, etc.)
+        const allTotals = [...responseText.matchAll(/(?:[💵💰⚖️💳]\s*)?(?:\*{1,2})?(?:செலுத்த\s*வேண்டிய\s*(?:மொத்த[த்\s]*)?தொகை|மொத்த[த்\s]*தொகை|මුළු\s*(?:එකතුව|මුදල)|Total(?:\s*Amount)?|Net\s*Total|Final\s*Amount)(?:\*{1,2})?\s*(?:\([^)]*\))?\s*[:\-]\s*(?:\*{1,2})?\s*(?:LKR|Rs\.?|රු\.?|ரூ\.?)?\s*([\d,]+(?:\.\d+)?)/gi)];
+        let totalAmount = 0;
+        if (allTotals.length > 0) {
+          const values = allTotals.map(m => parseFloat(m[1].replace(/,/g, ""))).filter(v => !isNaN(v) && v > 0);
+          if (values.length > 0) {
+            totalAmount = Math.max(...values);
+          }
+        }
 
         // Price and Delivery Fee fallback if Total line was not explicit
-        const priceMatch = responseText.match(/(?:[💰]\s*)?(?:\*{1,2})?(?:Price|මිල|விலை)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?\s*(?:LKR|Rs\.?|රු\.?|ரூ\.?)?\s*([\d,]+(?:\.\d+)?)/i);
-        const deliveryMatch = responseText.match(/(?:[🚚]\s*)?(?:\*{1,2})?(?:Delivery(?:\s*Fee)?|ගාස්තුව|டெலிவரி)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?\s*(?:LKR|Rs\.?|රු\.?|ரூ\.?)?\s*([\d,]+(?:\.\d+)?)/i);
+        const priceMatch = responseText.match(/(?:[💰]\s*)?(?:\*{1,2})?(?:Price|මිල|விலை|අයිතමයේ\s*මිල)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?\s*(?:LKR|Rs\.?|රු\.?|ரூ\.?)?\s*([\d,]+(?:\.\d+)?)/i);
+        const deliveryMatch = responseText.match(/(?:[🚚]\s*)?(?:\*{1,2})?(?:Delivery(?:\s*Fee)?|ගාස්තුව|බෙදාහැරීමේ\s*ගාස්තුව|டெலிவரி(?:\s*கட்டணம்)?)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?\s*(?:LKR|Rs\.?|රු\.?|ரூ\.?)?\s*([\d,]+(?:\.\d+)?)/i);
 
         // Items extraction if explicit
-        const itemsMatch = responseText.match(/(?:📦\s*)?(?:\*{1,2})?(?:Items?|භාණ්ඩ|பொருட்கள்)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?([^\n\r*]+?)(?:\*{1,2})?(?:\n|\r|$)/i);
+        const itemsMatch = responseText.match(/(?:(?:📦|✅)\s*)?(?:\*{1,2})?(?:Items?|භාණ්ඩ|පொருட்கள்|பொருள்|ඇණවුම)(?:\*{1,2})?\s*[:\-]\s*(?:\*{1,2})?([^\n\r*]+?)(?:\*{1,2})?(?:\n|\r|$)/i);
 
         let customerName = nameMatch ? nameMatch[1].replace(/[*#_~]/g, "").trim() : (senderName && senderName !== "Unknown" ? senderName : null);
         let customerAddress = addressMatch ? addressMatch[1].replace(/[*#_~]/g, "").trim() : null;
         let customerPhone = phoneMatch ? (phoneMatch[1] || phoneMatch[0]).replace(/\D/g, "") : phoneNumber;
 
-        let totalAmount = totalMatch ? parseFloat(totalMatch[1].replace(/,/g, "")) : 0;
         if (totalAmount === 0 && priceMatch) {
           const itemPrice = parseFloat(priceMatch[1].replace(/,/g, ""));
           const deliveryFee = deliveryMatch ? parseFloat(deliveryMatch[1].replace(/,/g, "")) : 0;
