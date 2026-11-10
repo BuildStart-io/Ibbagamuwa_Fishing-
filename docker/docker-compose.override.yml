@@ -21,7 +21,7 @@ services:
       MINIO_REGION: ${MINIO_REGION}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      WEBHOOK_URL_OVERRIDE: "https://reaching-old-venture-references.trycloudflare.com/functions/v1/webhook-wsender-ibbagamuwa"
+      WEBHOOK_URL_OVERRIDE: "https://randy-ice-depends-sight.trycloudflare.com/functions/v1/webhook-wsender-ibbagamuwa"
 
   minio:
     container_name: supabase-minio

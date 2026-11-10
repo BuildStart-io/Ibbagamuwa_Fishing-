@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, MessageSquare, CreditCard, Copy, Check, Smartphone, RefreshCw, Wifi, WifiOff, Plus, Trash2, ArrowUp, ArrowDown, GripVertical, Clock, Lock, X } from "lucide-react";
 import WelcomeMediaUpload from "@/components/settings/WelcomeMediaUpload";
 import StaffManager from "@/components/settings/StaffManager";
+import StaffPhoneNumbersCard, { StaffPhoneNumber } from "@/components/settings/StaffPhoneNumbersCard";
 import { useStaffAccess } from "@/hooks/useStaffAccess";
 import { useEffectivePlan } from "@/hooks/useEffectivePlan";
 
@@ -76,6 +77,9 @@ export default function Settings() {
 
   // Order Notifications
   const [notificationPhone, setNotificationPhone] = useState("");
+
+  // Staff Phone Numbers (Used by AI Bot when asked for staff number)
+  const [staffPhoneNumbers, setStaffPhoneNumbers] = useState<StaffPhoneNumber[]>([]);
 
   // Order Follow-up Message
   const [orderFollowupMessage, setOrderFollowupMessage] = useState("");
@@ -187,6 +191,25 @@ export default function Settings() {
             setInactivityFollowupEnabled(iVal?.enabled ?? false);
             setInactivityFollowupHours(String(iVal?.hours ?? 24));
             setInactivityFollowupEnabledAt(iVal?.enabled_at || null);
+            break;
+          }
+          case "staff_phone_numbers": {
+            const sVal = setting.value as any;
+            let numbers: any[] = [];
+            if (Array.isArray(sVal)) {
+              numbers = sVal;
+            } else if (Array.isArray(sVal?.phone_numbers)) {
+              numbers = sVal.phone_numbers;
+            } else if (Array.isArray(sVal?.numbers)) {
+              numbers = sVal.numbers;
+            }
+            setStaffPhoneNumbers(
+              numbers.map((n: any) => ({
+                id: n.id || crypto.randomUUID(),
+                name: n.name || "",
+                phone: n.phone || "",
+              }))
+            );
             break;
           }
         }
@@ -570,6 +593,19 @@ export default function Settings() {
     }
     setNotificationPhone(cleanPhone);
     saveSettings("order_notifications", { phone: cleanPhone });
+  };
+
+  const handleSaveStaffPhoneNumbers = () => {
+    const validNumbers = staffPhoneNumbers
+      .map((n) => ({
+        id: n.id || crypto.randomUUID(),
+        name: (n.name || "").trim(),
+        phone: (n.phone || "").trim(),
+      }))
+      .filter((n) => n.phone.length > 0);
+
+    setStaffPhoneNumbers(validNumbers);
+    saveSettings("staff_phone_numbers", { phone_numbers: validNumbers });
   };
 
   const handleSaveOrderFollowup = () => {
@@ -1236,6 +1272,14 @@ export default function Settings() {
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Staff Phone Numbers */}
+            <StaffPhoneNumbersCard
+              numbers={staffPhoneNumbers}
+              onChange={setStaffPhoneNumbers}
+              onSave={handleSaveStaffPhoneNumbers}
+              saving={saving}
+            />
           </TabsContent>
 
           <TabsContent value="payment" className="space-y-6">
@@ -1383,6 +1427,12 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="staff" className="space-y-6">
+            <StaffPhoneNumbersCard
+              numbers={staffPhoneNumbers}
+              onChange={setStaffPhoneNumbers}
+              onSave={handleSaveStaffPhoneNumbers}
+              saving={saving}
+            />
             <StaffManager />
           </TabsContent>
 
