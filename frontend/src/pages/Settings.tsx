@@ -18,6 +18,18 @@ import StaffPhoneNumbersCard, { StaffPhoneNumber } from "@/components/settings/S
 import { useStaffAccess } from "@/hooks/useStaffAccess";
 import { useEffectivePlan } from "@/hooks/useEffectivePlan";
 
+export interface BusinessDetails {
+  business_name: string;
+  address: string;
+  city: string;
+  district: string;
+  landmark: string;
+  google_maps_url: string;
+  opening_hours: string;
+  pickup_instructions: string;
+  about: string;
+}
+
 interface PaymentAccount {
   account_type: string;
   account_label: string;
@@ -68,6 +80,19 @@ export default function Settings() {
   const [bankAccounts, setBankAccounts] = useState<PaymentAccount[]>([
     { account_type: "bank", account_label: "", account_number: "", account_name: "" }
   ]);
+
+  // Business & Store Details (Physical address, city, opening hours, landmarks)
+  const [businessDetails, setBusinessDetails] = useState<BusinessDetails>({
+    business_name: "",
+    address: "",
+    city: "",
+    district: "",
+    landmark: "",
+    google_maps_url: "",
+    opening_hours: "",
+    pickup_instructions: "",
+    about: "",
+  });
 
   // Auto Responses
   const [autoResponsesEnabled, setAutoResponsesEnabled] = useState(true);
@@ -167,6 +192,23 @@ export default function Settings() {
               setBankAccounts(migrated.length > 0 ? migrated : [defaultAccount]);
             } else if (val?.bank_name || val?.account_number || val?.account_name) {
               setBankAccounts([{ account_type: "bank", account_label: val.bank_name || "", account_number: val.account_number || "", account_name: val.account_name || "" }]);
+            }
+            break;
+          }
+          case "business_details": {
+            const bVal = setting.value as any;
+            if (bVal && typeof bVal === "object") {
+              setBusinessDetails({
+                business_name: bVal.business_name || "",
+                address: bVal.address || "",
+                city: bVal.city || "",
+                district: bVal.district || "",
+                landmark: bVal.landmark || "",
+                google_maps_url: bVal.google_maps_url || "",
+                opening_hours: bVal.opening_hours || "",
+                pickup_instructions: bVal.pickup_instructions || "",
+                about: bVal.about || "",
+              });
             }
             break;
           }
@@ -576,6 +618,10 @@ export default function Settings() {
     });
   };
 
+  const handleSaveBusinessDetails = () => {
+    saveSettings("business_details", businessDetails);
+  };
+
   const handleSaveAutoResponses = () => {
     saveSettings("auto_responses", { enabled: autoResponsesEnabled });
   };
@@ -680,6 +726,7 @@ export default function Settings() {
         <Tabs defaultValue="whatsapp" className="space-y-6">
           <TabsList className="w-full sm:w-auto">
             <TabsTrigger value="whatsapp" className="flex-1 sm:flex-initial">WhatsApp</TabsTrigger>
+            <TabsTrigger value="business" className="flex-1 sm:flex-initial">Business</TabsTrigger>
             <TabsTrigger value="chatbot" className="flex-1 sm:flex-initial">Chatbot</TabsTrigger>
             <TabsTrigger value="payment" className="flex-1 sm:flex-initial">Payment</TabsTrigger>
             <TabsTrigger value="delivery" className="flex-1 sm:flex-initial">Delivery</TabsTrigger>
@@ -888,6 +935,124 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Business Profile Tab */}
+          <TabsContent value="business" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Store className="h-5 w-5" />
+                  Business & Store Location
+                </CardTitle>
+                <CardDescription>
+                  Configure your physical store address, operating hours, and location details. The AI chatbot uses this to answer customer questions about your store location and pickup options.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-name">Business / Store Name</Label>
+                    <Input
+                      id="biz-name"
+                      value={businessDetails.business_name}
+                      onChange={(e) => setBusinessDetails(prev => ({ ...prev, business_name: e.target.value }))}
+                      placeholder="e.g. Ibbagamuwa Fishing Centre"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-city">City / Town</Label>
+                    <Input
+                      id="biz-city"
+                      value={businessDetails.city}
+                      onChange={(e) => setBusinessDetails(prev => ({ ...prev, city: e.target.value }))}
+                      placeholder="e.g. Ibbagamuwa"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-district">District</Label>
+                    <Input
+                      id="biz-district"
+                      value={businessDetails.district}
+                      onChange={(e) => setBusinessDetails(prev => ({ ...prev, district: e.target.value }))}
+                      placeholder="e.g. Kurunegala"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-maps">Google Maps URL / Link</Label>
+                    <Input
+                      id="biz-maps"
+                      value={businessDetails.google_maps_url}
+                      onChange={(e) => setBusinessDetails(prev => ({ ...prev, google_maps_url: e.target.value }))}
+                      placeholder="e.g. https://maps.app.goo.gl/..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="biz-address">Physical Street Address</Label>
+                  <Input
+                    id="biz-address"
+                    value={businessDetails.address}
+                    onChange={(e) => setBusinessDetails(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="e.g. No. 45, Kurunegala Road, Ibbagamuwa"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="biz-landmark">Landmarks & Directions</Label>
+                  <Input
+                    id="biz-landmark"
+                    value={businessDetails.landmark}
+                    onChange={(e) => setBusinessDetails(prev => ({ ...prev, landmark: e.target.value }))}
+                    placeholder="e.g. Near the Clock Tower, opposite Commercial Bank"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Helps customers finding your store in person.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-hours">Opening / Business Hours</Label>
+                    <Input
+                      id="biz-hours"
+                      value={businessDetails.opening_hours}
+                      onChange={(e) => setBusinessDetails(prev => ({ ...prev, opening_hours: e.target.value }))}
+                      placeholder="e.g. Mon - Sat: 8:00 AM - 7:00 PM, Sun: 8:00 AM - 1:00 PM"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-pickup">Store Pickup / Walk-in Policy</Label>
+                    <Input
+                      id="biz-pickup"
+                      value={businessDetails.pickup_instructions}
+                      onChange={(e) => setBusinessDetails(prev => ({ ...prev, pickup_instructions: e.target.value }))}
+                      placeholder="e.g. In-store pickup available during working hours"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="biz-about">About Business (Optional summary for AI)</Label>
+                  <Textarea
+                    id="biz-about"
+                    rows={2}
+                    value={businessDetails.about}
+                    onChange={(e) => setBusinessDetails(prev => ({ ...prev, about: e.target.value }))}
+                    placeholder="Brief description about your business, specialties, etc."
+                  />
+                </div>
+
+                <Button onClick={handleSaveBusinessDetails} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save Business Details
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>

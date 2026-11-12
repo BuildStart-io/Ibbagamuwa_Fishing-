@@ -122,6 +122,7 @@ serve(async (req) => {
     const paymentInfo = settings.find(s => s.key === "payment_info")?.value || {};
     const deliverySettings = settings.find(s => s.key === "delivery_settings")?.value || {};
     const freeDeliveryThreshold = deliverySettings.free_delivery_threshold || 0;
+    const businessDetails = settings.find(s => s.key === "business_details")?.value || {};
 
     const staffPhonesSetting = settings.find(s => s.key === "staff_phone_numbers")?.value;
     let configuredStaffPhones: { name?: string; phone: string }[] = [];
@@ -280,7 +281,30 @@ ${(() => {
           return `  NO staff phone numbers are currently configured by the business owner.\n  CRITICAL STAFF NUMBER RULES:\n  - When a customer asks for a staff number, phone number, contact number, hotline, or asks to call someone:\n    - You MUST NOT make up, guess, hallucinate, or provide ANY phone number under ANY circumstances.\n    - Politely inform the customer that direct phone calling is currently unavailable and invite them to send all their questions or order inquiries right here on WhatsApp so the team can assist them directly in this chat.`;
         }
       })()}
-- STRICT DATA BOUNDARY: You must ONLY use the product catalog, FAQs, payment information, and authorized staff phone numbers provided below. Do NOT make up products, prices, features, phone numbers, or answers that are not explicitly listed. If a customer asks about something not covered, politely say you don't have that information and suggest they message here directly.
+- BUSINESS LOCATION & PHYSICAL STORE DETAILS:
+${(() => {
+        const b = businessDetails;
+        if (!b || (!b.address && !b.city && !b.landmark && !b.opening_hours && !b.google_maps_url)) {
+          return `  Location: Ibbagamuwa, Sri Lanka. Direct store pickup can be arranged via WhatsApp. All-Island Delivery (with Cash on Delivery) is available across Sri Lanka.`;
+        }
+        const lines: string[] = [];
+        if (b.business_name) lines.push(`  Store Name: ${b.business_name}`);
+        if (b.address) lines.push(`  Physical Address: ${b.address}`);
+        if (b.city || b.district) lines.push(`  City/District: ${[b.city, b.district].filter(Boolean).join(", ")}`);
+        if (b.landmark) lines.push(`  Landmark / Directions: ${b.landmark}`);
+        if (b.google_maps_url) lines.push(`  Google Maps: ${b.google_maps_url}`);
+        if (b.opening_hours) lines.push(`  Opening Hours: ${b.opening_hours}`);
+        if (b.pickup_instructions) lines.push(`  Store Pickup / In-Store Visits: ${b.pickup_instructions}`);
+        if (b.about) lines.push(`  About Store: ${b.about}`);
+        return lines.join("\n");
+      })()}
+  CRITICAL LOCATION & STORE INQUIRY RULES:
+  - When a customer asks about store location, address, where the shop is located, opening hours, directions, or asks if they can visit or pick up items in person (in English, Sinhala, Singlish, Tamil, etc.):
+    - Clearly provide the exact store location and address details configured above.
+    - If a landmark or Google Maps link is available above, include it to guide them.
+    - If opening hours or pickup instructions are specified, share them clearly.
+    - Always remind the customer that All-Island Delivery (with Cash on Delivery) is also available across Sri Lanka if they prefer doorstep delivery.
+- STRICT DATA BOUNDARY: You must ONLY use the product catalog, FAQs, payment information, business details, and authorized staff phone numbers provided below. Do NOT make up products, prices, features, phone numbers, or answers that are not explicitly listed. If a customer asks about something not covered, politely say you don't have that information and suggest they message here directly.
 - INVENTORY & CATALOG REASONING RULES:
   1. STANDALONE PRODUCT SOVEREIGNTY:
      - Every product formatted inside a [PRODUCT] ... [END_PRODUCT] block in the catalog below is an active, standalone product available for individual purchase at its own listed Price.
