@@ -22,7 +22,7 @@ the Lovable AI Gateway and returns text. It touches no database and stores nothi
 
 `ai-chat` stays local on purpose: catalog, FAQs, plan quotas, order extraction and
 `ai_usage_logs` never leave your database. The prompt, model
-(`google/gemini-3-flash-preview`) and `max_tokens` (500) are byte-identical to the
+(`google/gemini-2.5-flash-lite`) and `max_tokens` (500) are byte-identical to the
 Lovable-hosted version, so reply quality is unchanged.
 
 ## Layout
@@ -75,7 +75,7 @@ One function, `ai-generate`:
 POST https://<lovable-ref>.supabase.co/functions/v1/ai-generate
 x-bot-key: <bot key>
 { "systemPrompt": "...", "messages": [{"role":"user","content":"hi"}],
-  "model": "google/gemini-3-flash-preview", "maxTokens": 500 }
+  "model": "google/gemini-2.5-flash-lite", "maxTokens": 500 }
 
 200 { "text": "...", "model": "...", "usage": { "promptTokens": 812, ... } }
 ```
