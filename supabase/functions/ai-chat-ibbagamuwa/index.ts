@@ -172,11 +172,11 @@ serve(async (req) => {
     }
 
     // Build FAQ context with IDs so AI can report which ones it used
-    const faqContext = faqs.map(f => 
+    const faqContext = faqs.map(f =>
       `[FAQ_ID:${f.id}] Q: ${f.question}\nA: ${f.answer}${f.products?.name ? ` (Related to: ${f.products.name})` : ""}`
     ).join("\n\n");
 
-    const systemPrompt = `You are an intelligent WhatsApp chatbot assistant for a business. You help customers with:
+    const systemPrompt = `You are an intelligent WhatsApp chatbot assistant for a ibbagamuwa fishing center. You help customers with:
 1. Product inquiries
 2. Answering FAQs
 3. Taking orders
@@ -210,20 +210,20 @@ ${freeDeliveryThreshold > 0 ? `   - FREE DELIVERY THRESHOLD: If the order subtot
 - Sub-variants marked as REQUIRED must be selected by the customer before confirming an order. Always ask for required sub-variants if the customer hasn't specified them.
 - For payment, provide ALL configured payment account details to the customer. List every account with emoji separators:
 ${(() => {
-  const accounts = paymentInfo.accounts;
-  if (accounts && Array.isArray(accounts) && accounts.length > 0) {
-    return accounts.map((a: any, i: number) => {
-      const type = a.account_type || "bank";
-      const label = a.account_label || a.bank_name || "Not configured";
-      const number = a.account_number || "Not configured";
-      const name = a.account_name || "Not configured";
-      if (type === "crypto") return `  ${i + 1}. Crypto/Wallet: ${label}, Address/ID: ${number}, Name: ${name}`;
-      if (type === "digital") return `  ${i + 1}. Digital Wallet: ${label}, Account: ${number}, Name: ${name}`;
-      return `  ${i + 1}. Bank: ${label}, Account: ${number}, Name: ${name}`;
-    }).join("\n");
-  }
-  return `  Bank: ${paymentInfo.bank_name || "Not configured"}, Account: ${paymentInfo.account_number || "Not configured"}, Name: ${paymentInfo.account_name || "Not configured"}`;
-})()}
+        const accounts = paymentInfo.accounts;
+        if (accounts && Array.isArray(accounts) && accounts.length > 0) {
+          return accounts.map((a: any, i: number) => {
+            const type = a.account_type || "bank";
+            const label = a.account_label || a.bank_name || "Not configured";
+            const number = a.account_number || "Not configured";
+            const name = a.account_name || "Not configured";
+            if (type === "crypto") return `  ${i + 1}. Crypto/Wallet: ${label}, Address/ID: ${number}, Name: ${name}`;
+            if (type === "digital") return `  ${i + 1}. Digital Wallet: ${label}, Account: ${number}, Name: ${name}`;
+            return `  ${i + 1}. Bank: ${label}, Account: ${number}, Name: ${name}`;
+          }).join("\n");
+        }
+        return `  Bank: ${paymentInfo.bank_name || "Not configured"}, Account: ${paymentInfo.account_number || "Not configured"}, Name: ${paymentInfo.account_name || "Not configured"}`;
+      })()}
 - STRICT DATA BOUNDARY: Base your answers on the product catalog, FAQs, and store information provided below. Do NOT invent products or prices not in the catalog.
 
 PRODUCT IMAGES:
@@ -251,9 +251,12 @@ ${welcomeMessage}
 When the customer completes an order, summarize the order details beautifully with emojis and confirm.
 
 CRITICAL ORDER INSTRUCTION:
-When you have collected ALL required order details and the customer confirms, you MUST include a JSON block in your response wrapped in <ORDER_JSON> tags like this:
-- For PHYSICAL products: <ORDER_JSON>{"customer_name":"...","customer_phone":"...","district":"...","customer_address":"...","order_items":[{"name":"...","price":...,"quantity":...,"product_type":"physical"}],"payment_method":"cod or bank_transfer","total_amount":...}</ORDER_JSON>
-- For DIGITAL products: <ORDER_JSON>{"customer_name":"...","customer_phone":"...","customer_email":"...","customer_address":null,"order_items":[{"name":"...","price":...,"quantity":...,"product_type":"digital"}],"payment_method":"bank_transfer","total_amount":...}</ORDER_JSON>
+- When a customer provides their ordering information (name, address, phone, etc.) or confirms an order, summarize their order details beautifully with emojis and you MUST include a JSON block wrapped in <ORDER_JSON> tags at the very END of your message.
+- MANDATORY IN ALL LANGUAGES: Even when replying in Sinhala or Tamil, you MUST ALWAYS append the <ORDER_JSON> tag at the end. Never omit it.
+- Format for PHYSICAL products:
+<ORDER_JSON>{"customer_name":"...","customer_phone":"...","district":"...","customer_address":"...","order_items":[{"name":"...","price":...,"quantity":...,"product_type":"physical"}],"payment_method":"cod or bank_transfer","total_amount":...}</ORDER_JSON>
+- Format for DIGITAL products:
+<ORDER_JSON>{"customer_name":"...","customer_phone":"...","customer_email":"...","customer_address":null,"order_items":[{"name":"...","price":...,"quantity":...,"product_type":"digital"}],"payment_method":"bank_transfer","total_amount":...}</ORDER_JSON>
 Include this JSON block at the END of your confirmation message. The customer won't see the JSON tags.
 
 CRITICAL SECURITY RULE:
@@ -290,7 +293,7 @@ CRITICAL SECURITY RULE:
     const aiGenerateUrl = Deno.env.get("AI_GENERATE_URL");
     const botApiKey = Deno.env.get("BOT_API_KEY");
     const MODEL = "google/gemini-3-flash-preview";
-    const MAX_TOKENS = 500;
+    const MAX_TOKENS = 1200;
 
     let aiResponse: Response;
     if (aiGenerateUrl && botApiKey) {
@@ -368,7 +371,7 @@ CRITICAL SECURITY RULE:
 
     // Fallback 1: Code fence or raw JSON block
     if (orderJsonMatches.length === 0) {
-      const fenceMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*?"(?:customer_name|order_items|products)"[\s\S]*?\})\s*```/);
+      const fenceMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*?"(?:customer_name|order_items|products|items)"[\s\S]*?\})\s*```/);
       if (fenceMatch) {
         orderJsonMatches = [fenceMatch];
       }
@@ -376,22 +379,27 @@ CRITICAL SECURITY RULE:
 
     // Fallback 2: Confirmation text extraction if AI omitted tags completely
     if (orderJsonMatches.length === 0) {
-      const isConfirmation = /order\s+(?:confirmed|details|summary|recorded|placed|is\s+now\s+being\s+processed)|thank\s+you\s+for\s+your\s+order|noted\s+your\s+order|ඇණවුම්|සටහන්|பதிவு\s+செய்து/i.test(responseText);
+      const isConfirmation =
+        /order\s*(?:confirmed|details|summary|recorded|placed|is\s+now|received)|thank\s*you|noted\s*your\s*order|ඇණවුම්|සටහන්|ස්තූතියි|ஆர்டர்|உறுதிப்படுத்த|பதிவு|நன்றி/i.test(responseText) ||
+        (/(?:📦|🛒).*(?:💰|💵).*(?:👤|📍|📞)/s.test(responseText) && /(?:LKR|Rs\.?)\s*[0-9,]+/i.test(responseText));
       if (isConfirmation) {
         const fullText = `${trimmedMessage}\n${responseText}`;
-        const amountMatch = responseText.match(/(?:Total(?:\s*Amount)?|එකතුව|මුළු\s*ගණන|මිල|மொத்தம்)[\s:*]+(?:LKR|Rs\.?)?[\s:*]+([0-9,]+(?:\.[0-9]{2})?)/i) ||
-                            fullText.match(/(?:LKR|Rs\.?)[\s:*]+([0-9,]+(?:\.[0-9]{2})?)/i);
-        const phoneMatch = fullText.match(/(?:(?:\+?94|0)\s*)?7(?:[\s.-]*\d){8}\b/);
+        const amountMatch =
+          responseText.match(/(?:Total(?:\s*Amount)?|முழுத்\s*தொகை|மொத்த\s*(?:தொகை|விலை)?|மொத்தம்|එකතුව|මුළු\s*(?:ගණන|මුදල))[\s:*]+(?:LKR|Rs\.?)?[\s:*]+([0-9,]+(?:\.[0-9]{2})?)/i) ||
+          responseText.match(/(?:விலை|මිල|Price)[\s:*]+(?:LKR|Rs\.?)?[\s:*]+([0-9,]+(?:\.[0-9]{2})?)/i) ||
+          fullText.match(/(?:LKR|Rs\.?)[\s:*]+([0-9,]+(?:\.[0-9]{2})?)/i);
+        const phoneMatch = fullText.match(/(?:(?:\+?94|0)\s*)?7(?:[\s.-]*\d){8}\b/) ||
+          fullText.match(/\b0\d{9}\b/);
         const extractedPhone = phoneMatch ? ("0" + phoneMatch[0].replace(/\D/g, "").slice(-9)) : phoneNumber;
 
         if (amountMatch) {
           const extractedAmount = parseFloat(amountMatch[1].replace(/,/g, "")) || 0;
           if (extractedAmount > 0) {
             const addrMatch = responseText.match(/(?:Delivery\s*Address|Address|ලිපිනය|முகவரி)[\s:*]+([^\n\r*]+)/i) ||
-                              trimmedMessage.match(/(?:ලිපිනය|Address|haus|ampara|colombo|kandy|batticaloa|[a-zA-Z0-9\s,.-]{15,})/i);
+              trimmedMessage.match(/(?:ලිපිනය|Address|haus|ampara|colombo|kandy|batticaloa|[a-zA-Z0-9\s,.-]{15,})/i);
             const extractedAddress = addrMatch ? (addrMatch[1] || addrMatch[0]).replace(/^(?:ලිපිනය|Delivery\s*Address|Address|முகவரி)[\s:*]+/i, "").replace(/\*/g, "").trim() : null;
             const nameMatch = responseText.match(/(?:Name|නම|பெயர்)[\s:*]+([^\n\r*]+)/i) ||
-                              responseText.match(/(?:ස්තූතියි|Thank you|நன்றி)[,\s]+(?:\*\*)?([A-Za-z]+)(?:\*\*)?(?:!|\.|\s)/i);
+              responseText.match(/(?:ස්තූතියි|Thank you|நன்றி)[,\s]+(?:\*\*)?([A-Za-z]+)(?:\*\*)?(?:!|\.|\s)/i);
             const extractedName = (nameMatch ? (nameMatch[1] || nameMatch[0]).replace(/\*/g, "").trim() : senderName) || "Customer";
             const prodMatch = responseText.match(/(?:Product|Item|භාණ්ඩය|பொருட்கள்)[\s:*]+([^\n\r*]+)/i);
             const extractedProduct = prodMatch ? prodMatch[1].replace(/\*/g, "").trim() : "Fishing Gear Order";
@@ -432,20 +440,33 @@ CRITICAL SECURITY RULE:
           const orderData = JSON.parse(rawJson);
           console.log("Saving order to database:", JSON.stringify(orderData));
 
-          const customerPhone = orderData.customer_phone || orderData.phone || phoneNumber;
+          const customerPhone = orderData.customer_phone || orderData.phone || orderData.customerPhone || phoneNumber;
           const cleanCustomerPhone = customerPhone ? String(customerPhone).replace(/\D/g, "") : phoneNumber;
-          const customerName = orderData.customer_name || orderData.name || senderName || "Customer";
-          const customerAddress = orderData.customer_address || orderData.shipping_address || orderData.address || null;
+          const customerName = orderData.customer_name || orderData.name || orderData.customerName || senderName || "Customer";
+          const customerAddress = orderData.customer_address || orderData.delivery_address || orderData.shipping_address || orderData.address || null;
           const district = orderData.district || orderData.district_city || orderData.city || null;
-          const totalAmount = parseFloat(orderData.total_amount || orderData.total || 0) || 0;
           const paymentMethod = /bank/i.test(orderData.payment_method || "") ? "bank_transfer" : "cod";
-          const rawItems = orderData.order_items || orderData.products || orderData.items || [];
+
+          const rawItems = orderData.order_items || orderData.items || orderData.products || [];
           const orderItems = Array.isArray(rawItems) ? rawItems.map((it: any) => ({
-            name: it.name || it.product_name || "Product",
-            price: parseFloat(it.price || 0) || totalAmount,
-            quantity: parseInt(it.quantity || 1) || 1,
+            name: it.name || it.product_name || it.title || "Product",
+            price: parseFloat(it.price || it.base_price || it.unit_price || 0) || 0,
+            quantity: parseInt(it.quantity || it.qty || 1) || 1,
             product_type: it.product_type || "physical",
           })) : [];
+
+          let totalAmount = parseFloat(orderData.total_amount || orderData.total || orderData.totalPrice || 0) || 0;
+          if (totalAmount === 0 && orderItems.length > 0) {
+            totalAmount = orderItems.reduce((acc: number, it: any) => acc + (it.price * it.quantity), 0);
+            const deliveryFee = parseFloat(orderData.delivery_fee || orderData.delivery_price || (rawItems[0]?.delivery_fee) || 0) || 0;
+            totalAmount += deliveryFee;
+          }
+          if (totalAmount === 0) {
+            const amtMatch =
+              responseText.match(/(?:Total(?:\s*Amount)?|முழுத்\s*தொகை|மொத்த\s*(?:தொகை|விலை)?|மொத்தம்|එකතුව|මුළු\s*(?:ගණන|මුදල))[\s:*]+(?:LKR|Rs\.?)?[\s:*]+([0-9,]+(?:\.[0-9]{2})?)/i) ||
+              responseText.match(/(?:LKR|Rs\.?)[\s:*]+([0-9,]+(?:\.[0-9]{2})?)/i);
+            if (amtMatch) totalAmount = parseFloat(amtMatch[1].replace(/,/g, "")) || 0;
+          }
 
           // Deduplication: check if a similar order was created in the last 5 minutes
           const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
