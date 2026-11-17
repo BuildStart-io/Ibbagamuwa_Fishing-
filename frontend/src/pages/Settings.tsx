@@ -11,12 +11,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, MessageSquare, CreditCard, Copy, Check, Smartphone, RefreshCw, Wifi, WifiOff, Plus, Trash2, ArrowUp, ArrowDown, GripVertical, Clock, Lock, X } from "lucide-react";
+import { Loader2, Save, MessageSquare, CreditCard, Copy, Check, Smartphone, RefreshCw, Wifi, WifiOff, Plus, Trash2, ArrowUp, ArrowDown, GripVertical, Clock, Lock, X, Store } from "lucide-react";
 import WelcomeMediaUpload from "@/components/settings/WelcomeMediaUpload";
 import StaffManager from "@/components/settings/StaffManager";
 import StaffPhoneNumbersCard, { StaffPhoneNumber } from "@/components/settings/StaffPhoneNumbersCard";
 import { useStaffAccess } from "@/hooks/useStaffAccess";
 import { useEffectivePlan } from "@/hooks/useEffectivePlan";
+
+const generateId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+};
 
 export interface BusinessDetails {
   business_name: string;
@@ -55,7 +62,8 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false); // kept for potential future use
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { effectiveUserId, loading: staffLoading } = useStaffAccess();
   const { isGrowth } = useEffectivePlan();
 
   const [welcomeMediaUrl, setWelcomeMediaUrl] = useState("");
@@ -144,12 +152,16 @@ export default function Settings() {
   }, []);
 
   const fetchSettings = async () => {
-    if (!user) return;
+    const targetUserId = effectiveUserId || user?.id;
+    if (!targetUserId) {
+      setLoading(false);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from("settings")
         .select("key, value")
-        .eq("user_id", user.id);
+        .eq("user_id", targetUserId);
 
       if (error) throw error;
 
@@ -166,13 +178,13 @@ export default function Settings() {
             if (wVal?.welcome_sequence && Array.isArray(wVal.welcome_sequence)) {
               loadedSequence = wVal.welcome_sequence.map((seqItem: any) => {
                 if (seqItem.type === "text") {
-                  return { ...seqItem, text: seqItem.text ?? wVal?.text ?? "", id: seqItem.id || crypto.randomUUID() };
+                  return { ...seqItem, text: seqItem.text ?? wVal?.text ?? "", id: seqItem.id || generateId() };
                 }
                 return seqItem;
               });
             } else {
               // Build default sequence: text first, then media
-              if (wVal?.text?.trim()) loadedSequence.push({ type: "text", text: wVal.text, id: crypto.randomUUID() });
+              if (wVal?.text?.trim()) loadedSequence.push({ type: "text", text: wVal.text, id: generateId() });
               urls.forEach((u: string) => loadedSequence.push({ type: "media", url: u }));
             }
             setWelcomeSequence(loadedSequence);
@@ -247,7 +259,7 @@ export default function Settings() {
             }
             setStaffPhoneNumbers(
               numbers.map((n: any) => ({
-                id: n.id || crypto.randomUUID(),
+                id: n.id || generateId(),
                 name: n.name || "",
                 phone: n.phone || "",
               }))
@@ -268,14 +280,15 @@ export default function Settings() {
   };
 
   const fetchSessions = useCallback(async () => {
-    if (!user) return;
+    const targetUserId = effectiveUserId || user?.id;
+    if (!targetUserId) return;
     setSessionsLoading(true);
     try {
       // First get the user's mapped session IDs
       const { data: userSessions, error: dbError } = await supabase
         .from("user_wsender_sessions")
         .select("session_id, session_name")
-        .eq("user_id", user.id);
+        .eq("user_id", targetUserId);
 
       if (dbError) throw dbError;
 
@@ -400,7 +413,8 @@ export default function Settings() {
       setShowCreateForm(false);
 
       // Save mapping for this user (including api_key for webhook matching)
-      if (user && newSession?.id) {
+      const targetUserId = effectiveUserId || user?.id;
+      if (targetUserId && newSession?.id) {
         // Fetch session details to get the api_key
         let sessionApiKey: string | null = null;
         try {
@@ -417,7 +431,7 @@ export default function Settings() {
         }
 
         await supabase.from("user_wsender_sessions").upsert({
-          user_id: user.id,
+          user_id: targetUserId,
           session_id: String(newSession.id),
           session_name: newSessionName.trim(),
           session_api_key: sessionApiKey,
@@ -503,15 +517,22 @@ export default function Settings() {
   }, [user, toast, selectedSessionId, getFunctionAuthHeaders]);
 
   useEffect(() => {
+    if (authLoading || staffLoading) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     fetchSettings();
-  }, [user]);
+  }, [user, effectiveUserId, authLoading, staffLoading]);
 
   const saveSettings = async (key: string, value: any) => {
+    const targetUserId = effectiveUserId || user?.id;
+    if (!targetUserId) return;
     setSaving(true);
     try {
       const { error } = await supabase
         .from("settings")
-        .upsert({ key, value, user_id: user!.id }, { onConflict: "user_id,key" });
+        .upsert({ key, value, user_id: targetUserId }, { onConflict: "user_id,key" });
 
       if (error) throw error;
       toast({ title: "Settings saved successfully" });
@@ -644,7 +665,7 @@ export default function Settings() {
   const handleSaveStaffPhoneNumbers = () => {
     const validNumbers = staffPhoneNumbers
       .map((n) => ({
-        id: n.id || crypto.randomUUID(),
+        id: n.id || generateId(),
         name: (n.name || "").trim(),
         phone: (n.phone || "").trim(),
       }))
@@ -1083,7 +1104,7 @@ export default function Settings() {
                         type="button" 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => setWelcomeSequence(prev => [...prev, { type: "text", text: "", id: crypto.randomUUID() }])}
+                        onClick={() => setWelcomeSequence(prev => [...prev, { type: "text", text: "", id: generateId() }])}
                       >
                         <Plus className="h-4 w-4 mr-2" /> Add Message
                       </Button>
