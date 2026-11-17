@@ -529,6 +529,13 @@ CRITICAL SECURITY RULE:
       const isConfirmation = responseText.includes("ඇණවුම් විස්තර") || 
                              responseText.includes("ඇණවුම ලැබුණා") || 
                              responseText.includes("ඇණවුම සූදානම්") || 
+                             responseText.includes("ඇණවුම භාරගත්තා") ||
+                             responseText.includes("ඇණවුම භාරගත්ත") ||
+                             responseText.includes("සටහන් කරගත්තා") ||
+                             responseText.includes("සටහන් කරගත්ත") ||
+                             responseText.includes("ඇණවුම අපි සටහන්") ||
+                             responseText.includes("ඇණවුම තහවුරු") ||
+                             responseText.includes("ඇණවුම සාර්ථක") ||
                              /order\s+confirmed|order\s+details|thank\s+you\s+for\s+your\s+order/i.test(responseText);
       
       if (isConfirmation) {
