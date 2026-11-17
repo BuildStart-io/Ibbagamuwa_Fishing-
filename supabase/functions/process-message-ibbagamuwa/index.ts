@@ -279,7 +279,7 @@ async function processMessage(
     if (sent) return;
   }
 
-  // 5. Get conversation history
+  // 5. Get conversation history (15 messages for rich context)
   mark("history_start");
   const { data: conversationHistory } = await supabase
     .from("conversations")
@@ -287,7 +287,7 @@ async function processMessage(
     .eq("phone_number", phoneNumber)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(15);
   mark("history_end");
 
   // 6. Call AI chat with timeout

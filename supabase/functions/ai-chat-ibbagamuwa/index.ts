@@ -37,14 +37,27 @@ serve(async (req) => {
 
     console.log(`Processing AI chat for ${phoneNumber} (user: ${userId}): ${message}`);
 
-    // Fetch products, FAQs, settings, profile, and platform limits
-    const [productsRes, faqsRes, settingsRes, profileRes, platformLimitsRes] = await Promise.all([
+    // Fetch products, FAQs, settings, profile, platform limits, and past order for returning customer
+    const [productsRes, faqsRes, settingsRes, profileRes, platformLimitsRes, pastOrderRes] = await Promise.all([
       supabase.from("products").select("*").eq("is_active", true).eq("user_id", userId).order("price", { ascending: true }),
       supabase.from("faqs").select("*, products(name)").eq("is_active", true).eq("user_id", userId),
       supabase.from("settings").select("key, value").eq("user_id", userId),
       supabase.from("profiles").select("plan_tier, billing_cycle_start, is_paused, addon_contacts, addon_orders").eq("user_id", userId).single(),
       supabase.from("platform_settings").select("value").eq("key", "plan_limits").single(),
+      supabase.from("orders").select("customer_name, customer_phone, customer_address, district").eq("user_id", userId).or(`whatsapp_phone.eq."${phoneNumber}",customer_phone.eq."${phoneNumber}"`).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
+
+    const isPlVal = (s: any) => !s || typeof s !== "string" || s.toLowerCase().includes("previous") || s.toLowerCase().includes("already") || s.toLowerCase().includes("not provided") || s.trim() === "-";
+    let pastCustomerContext = "";
+    if (pastOrderRes?.data && !isPlVal(pastOrderRes.data.customer_name) && !isPlVal(pastOrderRes.data.customer_address)) {
+      pastCustomerContext = `
+RETURNING CUSTOMER ON-FILE (Use only if customer asks to deliver to 'previous address / කලින් ඇඩ්ද්‍රස් එකට / same address'):
+- Customer Name: ${pastOrderRes.data.customer_name}
+- Customer Phone: ${pastOrderRes.data.customer_phone || "Not on file"}
+- Delivery Address: ${pastOrderRes.data.customer_address}
+- District: ${pastOrderRes.data.district || "Not specified"}
+`;
+    }
 
     // Check if account is paused
     if (profileRes.data?.is_paused) {
@@ -345,14 +358,27 @@ ${faqContext || "No FAQs configured"}
 
 WELCOME MESSAGE (for first-time customers):
 ${welcomeMessage}
-
+${pastCustomerContext}
 When the customer completes an order, summarize the order details beautifully with emojis and confirm.
 
-CRITICAL ORDER INSTRUCTION:
-Whenever you confirm an order or summarize finalized order details (name, phone, address, payment), you MUST include a JSON block at the very END of your confirmation message wrapped in <ORDER_JSON> tags like this:
-- For PHYSICAL products: <ORDER_JSON>{"customer_name":"...","customer_phone":"...","district":"...","customer_address":"...","order_items":[{"name":"...","price":1234,"quantity":1,"product_type":"physical"}],"payment_method":"cod","total_amount":1234}</ORDER_JSON>
-- For DIGITAL products: <ORDER_JSON>{"customer_name":"...","customer_phone":"...","customer_email":"...","customer_address":null,"order_items":[{"name":"...","price":1234,"quantity":1,"product_type":"digital"}],"payment_method":"bank_transfer","total_amount":1234}</ORDER_JSON>
-Note: payment_method must be strictly "cod" or "bank_transfer". total_amount must be a number. Include this JSON block at the END of your confirmation message. The customer won't see the JSON tags.
+CRITICAL ORDER INSTRUCTION (STRICT & MANDATORY):
+1. MANDATORY TAG REQUIREMENT:
+   - Whenever a customer provides their name, address, and/or phone number to order, or whenever you summarize and confirm an order (e.g. saying "ඔබේ ඇණවුම ලැබුණා", "ඇණවුම සූදානම් කළා", "Order confirmed", "Thank you for your order"), you MUST ALWAYS append the <ORDER_JSON>...</ORDER_JSON> block at the very END of your confirmation message without exception!
+   - NEVER EVER omit the <ORDER_JSON> tag when confirming an order. Omitting this tag prevents the order from being saved to the database.
+   - If payment method is not explicitly specified by the customer, ALWAYS default strictly to "cod" (Cash on Delivery).
+   - Calculate total_amount strictly as: (sum of product prices) + (delivery fee).
+
+2. ANTI-PLACEHOLDER RULE (REAL DATA ENFORCEMENT):
+   - In <ORDER_JSON>, customer_name, customer_phone, and customer_address MUST be REAL values.
+   - NEVER write placeholder words like "Previous Customer", "Previous Phone", "Previous Address", "Previous District", "Already Provided", "Not provided", "-", or "None" in <ORDER_JSON>.
+   - If a returning customer asks to send to their previous address ("කලින් දුන්න ඇඩ්ද්‍රස් එකට", "same address"):
+     * If RETURNING CUSTOMER ON-FILE details are provided above, use those exact details in <ORDER_JSON> and confirm them.
+     * If no previous address is on file, DO NOT guess or write placeholders! Politely ask the customer: "කරුණාකර ඔබේ නම, දුරකථන අංකය සහ බෙදාහැරීමේ ලිපිනය නැවත ලබා දෙන්න (Please provide your name, phone number, and delivery address to confirm the dispatch)."
+
+3. FORMAT SPECIFICATION:
+   - For PHYSICAL products: <ORDER_JSON>{"customer_name":"REAL_NAME","customer_phone":"REAL_PHONE","district":"REAL_DISTRICT_OR_TOWN","customer_address":"REAL_FULL_ADDRESS","order_items":[{"name":"Exact Product Name","price":1234,"quantity":1,"product_type":"physical"}],"payment_method":"cod","total_amount":1234}</ORDER_JSON>
+   - For DIGITAL products: <ORDER_JSON>{"customer_name":"REAL_NAME","customer_phone":"REAL_PHONE","customer_email":"REAL_EMAIL","customer_address":null,"order_items":[{"name":"Exact Product Name","price":1234,"quantity":1,"product_type":"digital"}],"payment_method":"bank_transfer","total_amount":1234}</ORDER_JSON>
+   Note: payment_method must be strictly "cod" or "bank_transfer". total_amount must be a number. Include this JSON block at the very END of your confirmation message. The customer won't see the JSON tags.
 
 CRITICAL SECURITY RULE:
 - Do NOT show raw JSON or code in the conversational message text. The ORDER_JSON, IMAGE_URL, VIDEO_URL, and USED_FAQS tags are automatically stripped by the backend and must ONLY appear at the very END of your message, after all human-readable text.
@@ -404,7 +430,7 @@ CRITICAL SECURITY RULE:
     // ------------------------------------------------------------------
     const aiGenerateUrl = Deno.env.get("AI_GENERATE_URL");
     const botApiKey = Deno.env.get("BOT_API_KEY");
-    const MODEL = "google/gemini-2.5-flash-lite";
+    const MODEL = "google/gemini-3-flash-preview";
     const MAX_TOKENS = 1200;
 
     let aiResponse: Response;
@@ -485,7 +511,7 @@ CRITICAL SECURITY RULE:
     let orderCreated = false;
     let orderJsonMatches = [...responseText.matchAll(/<ORDER_JSON>([\s\S]*?)<\/ORDER_JSON>/g)];
 
-    // Fallback: If no <ORDER_JSON> tag was found, check if a JSON object was emitted
+    // Fallback 1: If no <ORDER_JSON> tag was found, check if a JSON object was emitted
     if (orderJsonMatches.length === 0) {
       const fenceMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*?"(?:customer_name|order_items)"[\s\S]*?\})\s*```/);
       if (fenceMatch) {
@@ -494,6 +520,47 @@ CRITICAL SECURITY RULE:
         const rawJsonMatch = responseText.match(/(\{[\s\S]*?"customer_name"\s*:[\s\S]*?"(?:order_items|total_amount)"\s*:[\s\S]*?\})/);
         if (rawJsonMatch) {
           orderJsonMatches = [rawJsonMatch];
+        }
+      }
+    }
+
+    // Fallback 2: If AI confirmed an order in text but omitted JSON tags completely, extract from message text
+    if (orderJsonMatches.length === 0) {
+      const isConfirmation = responseText.includes("ඇණවුම් විස්තර") || 
+                             responseText.includes("ඇණවුම ලැබුණා") || 
+                             responseText.includes("ඇණවුම සූදානම්") || 
+                             /order\s+confirmed|order\s+details|thank\s+you\s+for\s+your\s+order/i.test(responseText);
+      
+      if (isConfirmation) {
+        const fullText = `${trimmedMessage}\n${responseText}`;
+        const amountMatch = responseText.match(/(?:එකතුව|මුළු\s*ගණන|Total|LKR|මිල)\s*[:：]?\s*([0-9,]+(?:\.[0-9]{2})?)/i) ||
+                            fullText.match(/(?:Rs\.?|LKR)\s*([0-9,]+)/i);
+        const phoneMatch = fullText.match(/(?:0|\+?94)?(7[0-9]{8})\b/);
+
+        if (amountMatch && phoneMatch) {
+          const extractedAmount = parseFloat(amountMatch[1].replace(/,/g, "")) || 0;
+          const extractedPhone = "0" + phoneMatch[1];
+          
+          if (extractedAmount > 0) {
+            console.log(`Fallback order auto-detected from confirmation text: Phone=${extractedPhone}, Amount=${extractedAmount}`);
+            const addrMatch = responseText.match(/(?:ලිපිනය|Address)\s*[:：]\s*([^\n\r]+)/i) ||
+                              trimmedMessage.match(/(?:ලිපිනය|Address|haus|ampara|colombo|kandy|[a-zA-Z0-9\s,.-]{15,})/i);
+            const extractedAddress = addrMatch ? addrMatch[0].replace(/^(?:ලිපිනය|Address)\s*[:：]\s*/i, "").trim() : null;
+            
+            const nameMatch = responseText.match(/(?:ස්තූතියි|Thank you)\s+([^\n\r!🎣]+?)(?:\s+මහතා|\s+මිය|!|\.)/i) ||
+                              trimmedMessage.match(/(?:Nama|Name)\s*[:=]?\s*([^\n\r]+)/i);
+            const extractedName = nameMatch ? nameMatch[1].replace(/^(?:Nama|Name)\s*[:=]?\s*/i, "").trim() : (senderName || "Customer");
+
+            const syntheticOrder = {
+              customer_name: extractedName,
+              customer_phone: extractedPhone,
+              customer_address: extractedAddress,
+              payment_method: /bank\s*transfer|බැංකු/i.test(fullText) ? "bank_transfer" : "cod",
+              total_amount: extractedAmount,
+              order_items: [{ name: "Fishing Gear Package / Order", price: extractedAmount, quantity: 1, product_type: "physical" }]
+            };
+            orderJsonMatches = [[JSON.stringify(syntheticOrder), JSON.stringify(syntheticOrder)]];
+          }
         }
       }
     }
@@ -525,10 +592,53 @@ CRITICAL SECURITY RULE:
               }))
             : (orderData.order_items || []);
 
-          const customerName = (typeof orderData.customer_name === "string" && orderData.customer_name.trim())
+          let customerName = (typeof orderData.customer_name === "string" && orderData.customer_name.trim())
             ? orderData.customer_name.trim()
             : (senderName?.trim() || "Customer");
-          const customerPhone = orderData.customer_phone || phoneNumber;
+          let customerPhone = orderData.customer_phone || phoneNumber;
+          let customerAddress = orderData.customer_address || null;
+          let district = orderData.district || null;
+
+          const isPlaceholder = (val: string | null | undefined) => {
+            if (!val) return true;
+            const lower = String(val).toLowerCase().trim();
+            return lower.includes("previous") || 
+                   lower.includes("already") || 
+                   lower.includes("not provided") || 
+                   lower.includes("same as") ||
+                   lower === "-" || 
+                   lower === "none";
+          };
+
+          // Anti-placeholder guard: if placeholder found, rescue from past order on file
+          if (isPlaceholder(customerName) || isPlaceholder(customerPhone) || isPlaceholder(customerAddress)) {
+            if (pastOrderRes?.data) {
+              if (isPlaceholder(customerName) && !isPlaceholder(pastOrderRes.data.customer_name)) {
+                customerName = pastOrderRes.data.customer_name;
+              }
+              if (isPlaceholder(customerPhone) && !isPlaceholder(pastOrderRes.data.customer_phone)) {
+                customerPhone = pastOrderRes.data.customer_phone;
+              }
+              if (isPlaceholder(customerAddress) && !isPlaceholder(pastOrderRes.data.customer_address)) {
+                customerAddress = pastOrderRes.data.customer_address;
+              }
+              if (isPlaceholder(district) && !isPlaceholder(pastOrderRes.data.district)) {
+                district = pastOrderRes.data.district;
+              }
+            }
+          }
+
+          // Mobile phone extraction: if phone is still placeholder or @lid, search recent messages for 10-digit number
+          if (isPlaceholder(customerPhone) || customerPhone.includes("@lid")) {
+            const fullHistoryText = [
+              trimmedMessage,
+              ...(conversationHistory || []).map((m: any) => m.message || "")
+            ].join("\n");
+            const phoneMatch = fullHistoryText.match(/(?:0|\+?94)?(7[0-9]{8})\b/);
+            if (phoneMatch) {
+              customerPhone = "0" + phoneMatch[1];
+            }
+          }
 
           // Deduplication: check if a similar order was created in the last 5 minutes
           const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
